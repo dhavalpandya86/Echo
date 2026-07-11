@@ -19,13 +19,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.dhaval.echo.domain.ai.IntelligenceStatus
 import com.dhaval.echo.ui.components.*
 import com.dhaval.echo.ui.theme.EchoTheme
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntryDetailsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToEntry: (String) -> Unit,
     viewModel: EntryDetailsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
     collectionsViewModel: CollectionsViewModel = hiltViewModel()
@@ -89,6 +92,11 @@ fun EntryDetailsScreen(
                         onRenameClick = { showRenameDialog = true }
                     )
 
+                    if (!it.summary.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        SummarySection(it.summary)
+                    }
+
                     Spacer(modifier = Modifier.height(32.dp))
 
                     PlaybackCard(
@@ -113,9 +121,24 @@ fun EntryDetailsScreen(
                         onRemove = viewModel::removeFromCollection
                     )
 
+                    if (uiState.relatedEntries.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        ProjectContextSection(uiState.entry?.title ?: "")
+
+                        Spacer(modifier = Modifier.height(32.dp))
+                        RelatedMemoriesSection(
+                            relatedEntries = uiState.relatedEntries,
+                            onEntryClick = onNavigateToEntry
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(32.dp))
                     
-                    TranscriptSection(it.transcription)
+                    TranscriptSection(
+                        transcript = it.transcription,
+                        transcriptionStatus = it.transcriptionStatus,
+                        analysisStatus = it.analysisStatus
+                    )
                     
                     Spacer(modifier = Modifier.height(48.dp))
                 }
@@ -142,6 +165,27 @@ fun EntryDetailsScreen(
                 viewModel.addToCollection(id)
                 showCollectionPicker = false
             }
+        )
+    }
+}
+
+@Composable
+private fun SummarySection(summary: String) {
+    Column {
+        Text(
+            text = "AI Summary",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = summary,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                lineHeight = 24.sp,
+                letterSpacing = 0.2.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -302,7 +346,94 @@ private fun CollectionsSection(
 }
 
 @Composable
-private fun TranscriptSection(transcript: String?) {
+private fun ProjectContextSection(title: String) {
+    Column {
+        Text(
+            text = "Project Context",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        EchoCard(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Part of $title project",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "This memory contributes to your ongoing work on $title.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RelatedMemoriesSection(
+    relatedEntries: List<com.dhaval.echo.domain.timeline.TimelineEntry>,
+    onEntryClick: (String) -> Unit
+) {
+    Column {
+        Text(
+            text = "Related Memories",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        relatedEntries.forEach { entry ->
+            EchoCard(
+                onClick = { onEntryClick(entry.id) },
+                modifier = Modifier.padding(vertical = 4.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = entry.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = entry.timestamp.format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TranscriptSection(
+    transcript: String?,
+    transcriptionStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED,
+    analysisStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED
+) {
     Column {
         Text(
             text = "Transcript",
@@ -313,11 +444,49 @@ private fun TranscriptSection(transcript: String?) {
         EchoCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ) {
-            Text(
-                text = transcript ?: "Transcription will appear here once processed by AI.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (transcript == null) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
-            )
+            val isProcessing = transcriptionStatus == IntelligenceStatus.PROCESSING || 
+                           transcriptionStatus == IntelligenceStatus.TRANSCRIBING ||
+                           analysisStatus == IntelligenceStatus.PROCESSING ||
+                           analysisStatus == IntelligenceStatus.SUMMARIZING ||
+                           analysisStatus == IntelligenceStatus.CLASSIFYING ||
+                           analysisStatus == IntelligenceStatus.LINKING
+            
+            val statusText = when {
+                transcriptionStatus == IntelligenceStatus.TRANSCRIBING -> "Transcribing audio..."
+                analysisStatus == IntelligenceStatus.SUMMARIZING -> "Generating AI summary..."
+                analysisStatus == IntelligenceStatus.CLASSIFYING -> "Classifying memory..."
+                analysisStatus == IntelligenceStatus.LINKING -> "Finding related memories..."
+                analysisStatus == IntelligenceStatus.ANALYZING_TIMELINE -> "Analyzing life patterns..."
+                transcriptionStatus == IntelligenceStatus.PROCESSING || analysisStatus == IntelligenceStatus.PROCESSING -> "Processing..."
+                transcriptionStatus == IntelligenceStatus.FAILED || analysisStatus == IntelligenceStatus.FAILED -> "AI processing failed."
+                else -> null
+            }
+
+            if (isProcessing || statusText == "AI processing failed.") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(16.dp))
+                    }
+                    Text(
+                        text = statusText ?: "",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (statusText?.contains("failed") == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else {
+                Text(
+                    text = transcript ?: "Transcription will appear here once processed by AI.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (transcript == null) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
 }

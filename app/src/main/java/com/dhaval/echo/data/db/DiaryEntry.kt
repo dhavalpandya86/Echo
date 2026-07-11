@@ -2,14 +2,8 @@ package com.dhaval.echo.data.db
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.dhaval.echo.domain.ai.IntelligenceStatus
 import java.time.LocalDateTime
-
-enum class IntelligenceStatus {
-    PENDING,
-    PROCESSING,
-    COMPLETED,
-    FAILED
-}
 
 /**
  * Room Entity representing a recording in the database.
@@ -17,6 +11,7 @@ enum class IntelligenceStatus {
 @Entity(tableName = "diary_entries")
 data class DiaryEntry(
     @PrimaryKey val id: String,
+    val userId: String = "legacy_user",
     val title: String,
     val audioPath: String,
     val createdAt: LocalDateTime,

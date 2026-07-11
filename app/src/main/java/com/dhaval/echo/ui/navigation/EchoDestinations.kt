@@ -1,6 +1,7 @@
 package com.dhaval.echo.ui.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -18,6 +19,27 @@ import kotlinx.serialization.Serializable
 object HomeRoute
 
 @Serializable
+object WelcomeRoute
+
+@Serializable
+object LoginRoute
+
+@Serializable
+object CreateAccountRoute
+
+@Serializable
+object PhoneLoginRoute
+
+@Serializable
+object OtpVerificationRoute
+
+@Serializable
+object ForgotPasswordRoute
+
+@Serializable
+object ProfileSetupRoute
+
+@Serializable
 object RecordRoute
 
 @Serializable
@@ -33,7 +55,13 @@ object SearchRoute
 object SettingsRoute
 
 @Serializable
+object AiSettingsRoute
+
+@Serializable
 object CollectionsRoute
+
+@Serializable
+object ConversationRoute
 
 @Serializable
 data class CollectionDetailsRoute(val collectionId: String)
@@ -48,6 +76,7 @@ enum class TopLevelDestination(
 ) {
     Timeline(TimelineRoute, Icons.Default.History, "Timeline"),
     Home(HomeRoute, Icons.Default.Home, "Home"),
+    Chat(ConversationRoute, Icons.Default.AutoAwesome, "Chat"),
     Collections(CollectionsRoute, Icons.Default.Folder, "Collections"),
     Search(SearchRoute, Icons.Default.Search, "Search"),
     Settings(SettingsRoute, Icons.Default.Settings, "Settings")

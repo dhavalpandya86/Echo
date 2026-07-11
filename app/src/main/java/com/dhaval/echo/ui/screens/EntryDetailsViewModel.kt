@@ -9,10 +9,7 @@ import com.dhaval.echo.domain.diary.DiaryRepository
 import com.dhaval.echo.domain.tags.TagRepository
 import com.dhaval.echo.domain.timeline.TimelineEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -27,7 +24,8 @@ data class EntryDetailsUiState(
     val error: String? = null,
     val formattedDate: String = "",
     val tags: List<String> = emptyList(),
-    val collections: List<EchoCollection> = emptyList()
+    val collections: List<EchoCollection> = emptyList(),
+    val relatedEntries: List<TimelineEntry> = emptyList()
 )
 
 @HiltViewModel
@@ -35,17 +33,24 @@ class EntryDetailsViewModel @Inject constructor(
     private val diaryRepository: DiaryRepository,
     private val tagRepository: TagRepository,
     private val collectionRepository: CollectionRepository,
+    private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao,
+    private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val entryId: String = checkNotNull(savedStateHandle["entryId"])
     private val dateFormatter = DateTimeFormatter.ofPattern("MMMM d, yyyy • HH:mm", Locale.getDefault())
 
-    val uiState: StateFlow<EntryDetailsUiState> = combine(
-        diaryRepository.getEntryById(entryId),
-        tagRepository.getTagsForEntry(entryId),
-        collectionRepository.getCollectionsForEntry(entryId)
-    ) { entry, tags, collections ->
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<EntryDetailsUiState> = authRepository.currentUserId.flatMapLatest { userId ->
+        if (userId == null) return@flatMapLatest kotlinx.coroutines.flow.flowOf(EntryDetailsUiState())
+
+        combine(
+            diaryRepository.getEntryById(entryId),
+            tagRepository.getTagsForEntry(entryId),
+            collectionRepository.getCollectionsForEntry(entryId),
+            intelligenceDao.getRelatedEntries(entryId, userId)
+        ) { entry, tags, collections, related ->
         if (entry == null) {
             EntryDetailsUiState(isLoading = false, error = "Entry not found")
         } else {
@@ -57,21 +62,41 @@ class EntryDetailsViewModel @Inject constructor(
                     durationMillis = entry.duration,
                     timestamp = entry.createdAt,
                     transcription = entry.transcript,
+                    summary = entry.summary,
+                    transcriptionStatus = entry.transcriptionStatus,
+                    analysisStatus = entry.analysisStatus,
+                    relatedMemoriesCount = related.size,
                     isSynced = false,
                     isFavorite = entry.favorite
                 ),
                 isLoading = false,
                 formattedDate = entry.createdAt.format(dateFormatter),
                 tags = tags,
-                collections = collections
+                collections = collections,
+                relatedEntries = related.map {
+                    TimelineEntry(
+                        id = it.id,
+                        title = it.title,
+                        audioPath = it.audioPath,
+                        durationMillis = it.duration,
+                        timestamp = it.createdAt,
+                        transcription = it.transcript,
+                        summary = it.summary,
+                        transcriptionStatus = it.transcriptionStatus,
+                        analysisStatus = it.analysisStatus,
+                        relatedMemoriesCount = 0, // Not needed for related entries list
+                        isSynced = false,
+                        isFavorite = it.favorite
+                    )
+                }
             )
         }
     }
-    .stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = EntryDetailsUiState()
-    )
+}.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = EntryDetailsUiState()
+)
 
     fun updateTitle(newTitle: String) {
         viewModelScope.launch {

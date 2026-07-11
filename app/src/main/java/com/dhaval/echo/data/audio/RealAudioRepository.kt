@@ -1,20 +1,12 @@
 package com.dhaval.echo.data.audio
 
-import com.dhaval.echo.domain.audio.AudioConfig
-import com.dhaval.echo.domain.audio.AudioRepository
-import com.dhaval.echo.domain.audio.AudioSession
-import com.dhaval.echo.domain.audio.AudioStorageEngine
-import com.dhaval.echo.domain.audio.Recorder
-import com.dhaval.echo.domain.audio.RecordingEvent
-import com.dhaval.echo.domain.audio.RecordingResult
-import com.dhaval.echo.domain.audio.RecordingState
+import com.dhaval.echo.domain.audio.*
+import com.dhaval.echo.domain.auth.AuthRepository
 import com.dhaval.echo.domain.intelligence.IntelligenceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -31,6 +23,7 @@ class RealAudioRepository(
     private val storageEngine: AudioStorageEngine,
     private val diaryEntryDao: DiaryEntryDao,
     private val intelligenceRepository: IntelligenceRepository,
+    private val authRepository: AuthRepository,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) : AudioRepository {
 
@@ -80,21 +73,29 @@ class RealAudioRepository(
         result.fold(
             onSuccess = { storageResult ->
                 scope.launch {
-                    val now = LocalDateTime.now()
-                    val entry = DiaryEntry(
-                        id = sessionId,
-                        title = "Recording ${now.format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))}",
-                        audioPath = storageResult.file.absolutePath,
-                        createdAt = now,
-                        updatedAt = now,
-                        duration = System.currentTimeMillis() - startTimeMillis
-                    )
-                    diaryEntryDao.insertEntry(entry)
-                    
-                    // Trigger intelligence pipeline
-                    intelligenceRepository.processEntry(sessionId)
+                    try {
+                        val userId = authRepository.getCurrentUser()?.id ?: "anonymous"
+                        val now = LocalDateTime.now()
+                        val entry = DiaryEntry(
+                            id = sessionId,
+                            userId = userId,
+                            title = "Recording ${now.format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))}",
+                            audioPath = storageResult.file.absolutePath,
+                            createdAt = now,
+                            updatedAt = now,
+                            duration = System.currentTimeMillis() - startTimeMillis
+                        )
+                        diaryEntryDao.insertEntry(entry)
+                        
+                        // Trigger intelligence pipeline
+                        intelligenceRepository.processEntry(sessionId)
 
-                    _currentRecordingState.value = RecordingState.Idle
+                        _currentRecordingState.value = RecordingState.Idle
+                    } catch (e: Exception) {
+                        _currentRecordingState.value = RecordingState.Error(
+                            "Failed to save to database: ${e.message}"
+                        )
+                    }
                 }
             },
             onFailure = { throwable ->

@@ -58,6 +58,21 @@ fun TimelineScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Insights Section
+                    if (state.insights.isNotEmpty() && state.searchQuery.isEmpty()) {
+                        item {
+                            TimelineHeader("Insights")
+                        }
+                        items(state.insights.take(2)) { insight ->
+                            EchoInsightCard(
+                                title = insight.title,
+                                description = insight.description,
+                                type = insight.type,
+                                onClick = { /* TODO: Project view */ }
+                            )
+                        }
+                    }
+
                     TimelineGroup.entries.forEach { group ->
                         val entries = state.groupedEntries[group] ?: emptyList()
                         if (entries.isNotEmpty()) {
@@ -70,6 +85,10 @@ fun TimelineScreen(
                                     time = entry.timestamp.format(DateTimeFormatter.ofPattern("HH:mm")),
                                     duration = formatDuration(entry.durationMillis),
                                     isFavorite = entry.isFavorite,
+                                    status = entry.transcriptionStatus,
+                                    analysisStatus = entry.analysisStatus,
+                                    description = if (entry.summary.isNullOrBlank()) entry.transcription else entry.summary,
+                                    relatedMemoriesCount = state.relatedCounts[entry.id] ?: 0,
                                     onFavoriteClick = { viewModel.toggleFavorite(entry.id) },
                                     onClick = { onEntryClick(entry.id) }
                                 )

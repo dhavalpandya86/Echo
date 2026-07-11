@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dhaval.echo.domain.ai.IntelligenceStatus
 import com.dhaval.echo.domain.timeline.TimelineEntry
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -42,7 +43,15 @@ fun TimelineItem(
                 ) 
             },
             supportingContent = {
-                Text("${formatDuration(entry.durationMillis)} • ${entry.timestamp.format(timeFormatter)}")
+                if (entry.transcriptionStatus == IntelligenceStatus.PROCESSING) {
+                    Text(
+                        text = "Transcribing...",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    Text("${formatDuration(entry.durationMillis)} • ${entry.timestamp.format(timeFormatter)}")
+                }
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.padding(vertical = 4.dp)

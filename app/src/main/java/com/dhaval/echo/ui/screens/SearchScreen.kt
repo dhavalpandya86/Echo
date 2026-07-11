@@ -11,13 +11,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dhaval.echo.ui.components.*
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     onEntryClick: (String) -> Unit,
@@ -64,10 +66,31 @@ fun SearchScreen(
                     icon = Icons.Default.Search
                 )
             } else if (state.results.isEmpty()) {
+                Text(
+                    text = "Suggestions",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+                
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    state.suggestions.forEach { suggestion ->
+                        SuggestionChip(
+                            onClick = { viewModel.onQueryChanged(suggestion) },
+                            label = { Text(suggestion) }
+                        )
+                    }
+                }
+
                 EchoEmptyState(
                     message = "Search your memories.",
                     description = "Find that specific moment you're looking for.",
-                    icon = Icons.Default.Mic
+                    icon = Icons.Default.Mic,
+                    modifier = Modifier.weight(1f)
                 )
             } else {
                 LazyColumn(
@@ -75,12 +98,17 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    items(state.results, key = { it.id }) { entry ->
+                    items(state.results, key = { it.entry.id }) { result ->
+                        val entry = result.entry
                         EchoTimelineCard(
                             title = entry.title,
                             time = entry.timestamp.format(DateTimeFormatter.ofPattern("MMM d, HH:mm")),
                             duration = formatDuration(entry.durationMillis),
                             isFavorite = entry.isFavorite,
+                            status = entry.transcriptionStatus,
+                            analysisStatus = entry.analysisStatus,
+                            description = entry.summary ?: entry.transcription,
+                            relevanceScore = result.score,
                             onFavoriteClick = { /* Handle favorite in search */ },
                             onClick = { onEntryClick(entry.id) }
                         )

@@ -1,5 +1,6 @@
 package com.dhaval.echo.domain.timeline
 
+import com.dhaval.echo.domain.ai.IntelligenceStatus
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
 
@@ -14,6 +15,10 @@ data class TimelineEntry(
     val durationMillis: Long,
     val timestamp: LocalDateTime,
     val transcription: String? = null,
+    val summary: String? = null,
+    val transcriptionStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED,
+    val analysisStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED,
+    val relatedMemoriesCount: Int = 0,
     val isSynced: Boolean = false,
     val isFavorite: Boolean = false
 )

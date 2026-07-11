@@ -10,6 +10,7 @@ import java.time.LocalDateTime
 @Entity(tableName = "collections")
 data class EchoCollection(
     @PrimaryKey val id: String,
+    val userId: String = "legacy_user",
     val name: String,
     val description: String? = null,
     val createdAt: LocalDateTime,

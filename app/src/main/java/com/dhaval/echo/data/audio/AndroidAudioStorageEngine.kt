@@ -19,10 +19,9 @@ class AndroidAudioStorageEngine(
 ) : AudioStorageEngine {
 
     private val rootFolder: File by lazy {
-        // Using getExternalFilesDir to match "Android/data/.../Echo" requirement.
-        // This makes files accessible for backup/manual retrieval while remaining app-private.
-        val externalRoot = context.getExternalFilesDir(null) 
-        File(externalRoot, "Echo/audio").apply { mkdirs() }
+        // Fallback to internal files if external is not available
+        val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
+        File(baseDir, "Echo/audio").apply { mkdirs() }
     }
 
     private val captureFolder: File by lazy {
@@ -58,9 +57,12 @@ class AndroidAudioStorageEngine(
                 return Result.failure(Exception("File collision for session $sessionId"))
             }
 
-            // Move file to final destination
-            if (!sourceFile.renameTo(targetFile)) {
-                return Result.failure(Exception("Failed to move recording to archive"))
+            // Copy file to final destination (renameTo can fail across filesystems)
+            try {
+                sourceFile.copyTo(targetFile, overwrite = true)
+                sourceFile.delete()
+            } catch (e: Exception) {
+                return Result.failure(Exception("Failed to move recording to archive: ${e.message}"))
             }
 
             // Store metadata sidecar (Future-proofing for crash recovery/sync)

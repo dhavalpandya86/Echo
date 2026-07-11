@@ -1,8 +1,10 @@
 package com.dhaval.echo.data.audio
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Build
+import androidx.core.content.ContextCompat
 import com.dhaval.echo.domain.audio.AudioConfig
 import com.dhaval.echo.domain.audio.AudioStorageEngine
 import com.dhaval.echo.domain.audio.Recorder
@@ -48,26 +50,40 @@ class AndroidMediaRecorder(
     override fun start(sessionId: String, config: AudioConfig) {
         if (recorder != null) return
 
+        // Final check for permission before initializing hardware
+        if (ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            scope.launch {
+                _state.emit(RecordingEvent.Stopped(com.dhaval.echo.domain.audio.RecordingResult.Failure(SecurityException("Microphone permission not granted"))))
+            }
+            return
+        }
+
         val file = storageEngine.getCapturePath(sessionId)
         
-        recorder = createRecorder().apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setAudioSamplingRate(config.sampleRate)
-            setAudioEncodingBitRate(config.bitRate)
-            setOutputFile(file.absolutePath)
+        try {
+            recorder = createRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(config.sampleRate)
+                setAudioEncodingBitRate(config.bitRate)
+                setOutputFile(file.absolutePath)
 
-            try {
                 prepare()
                 start()
-                startTimeMillis = System.currentTimeMillis()
-                pausedDurationMillis = 0
-                startTicker()
-            } catch (e: Exception) {
-                scope.launch { _state.emit(RecordingEvent.Stopped(com.dhaval.echo.domain.audio.RecordingResult.Failure(e))) }
-                release()
             }
+            startTimeMillis = System.currentTimeMillis()
+            pausedDurationMillis = 0
+            startTicker()
+        } catch (e: Exception) {
+            scope.launch { 
+                _state.emit(RecordingEvent.Stopped(com.dhaval.echo.domain.audio.RecordingResult.Failure(e))) 
+            }
+            release()
         }
     }
 

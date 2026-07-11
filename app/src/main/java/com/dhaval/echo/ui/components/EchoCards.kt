@@ -9,10 +9,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dhaval.echo.domain.ai.IntelligenceStatus
 
 /**
  * Premium Card with 24dp rounding and soft elevation.
@@ -65,6 +63,58 @@ fun EchoCard(
 }
 
 @Composable
+fun EchoInsightCard(
+    title: String,
+    description: String,
+    type: com.dhaval.echo.domain.ai.InsightType,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = when (type) {
+        com.dhaval.echo.domain.ai.InsightType.ACTIVE_PROJECT -> MaterialTheme.colorScheme.primaryContainer
+        com.dhaval.echo.domain.ai.InsightType.RETURNING_IDEA -> MaterialTheme.colorScheme.secondaryContainer
+        com.dhaval.echo.domain.ai.InsightType.EMERGING_INTEREST -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+
+    EchoCard(
+        onClick = onClick,
+        modifier = modifier,
+        containerColor = containerColor
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val icon = when (type) {
+                    com.dhaval.echo.domain.ai.InsightType.ACTIVE_PROJECT -> Icons.Default.AutoAwesome
+                    com.dhaval.echo.domain.ai.InsightType.DORMANT_PROJECT -> Icons.Default.History
+                    com.dhaval.echo.domain.ai.InsightType.RETURNING_IDEA -> Icons.Default.Lightbulb
+                    else -> Icons.Default.Info
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
 fun EchoTimelineCard(
     title: String,
     time: String,
@@ -72,7 +122,12 @@ fun EchoTimelineCard(
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    status: IntelligenceStatus = IntelligenceStatus.COMPLETED,
+    analysisStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED,
+    description: String? = null,
+    relatedMemoriesCount: Int = 0,
+    relevanceScore: Float = 0f
 ) {
     EchoCard(
         onClick = onClick,
@@ -83,29 +138,112 @@ fun EchoTimelineCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-                Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = time,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+                    
+                    if (relevanceScore > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "${relevanceScore.toInt()}% relevance",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    val isProcessing = status == IntelligenceStatus.PROCESSING || 
+                                       status == IntelligenceStatus.TRANSCRIBING ||
+                                       analysisStatus == IntelligenceStatus.PROCESSING ||
+                                       analysisStatus == IntelligenceStatus.SUMMARIZING ||
+                                       analysisStatus == IntelligenceStatus.CLASSIFYING ||
+                                       analysisStatus == IntelligenceStatus.LINKING ||
+                                       analysisStatus == IntelligenceStatus.ANALYZING_TIMELINE
+                    if (isProcessing) {
+                        Spacer(Modifier.width(8.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                
+                if (!description.isNullOrBlank()) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = " • ",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = duration,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                }
+
+                if (relatedMemoriesCount > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "Related to $relatedMemoriesCount memories",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val statusText = when {
+                        status == IntelligenceStatus.TRANSCRIBING -> "Transcribing..."
+                        analysisStatus == IntelligenceStatus.SUMMARIZING -> "Summarizing..."
+                        analysisStatus == IntelligenceStatus.CLASSIFYING -> "Classifying..."
+                        analysisStatus == IntelligenceStatus.LINKING -> "Finding links..."
+                        analysisStatus == IntelligenceStatus.ANALYZING_TIMELINE -> "Analyzing timeline..."
+                        status == IntelligenceStatus.PROCESSING || analysisStatus == IntelligenceStatus.PROCESSING -> "Processing..."
+                        else -> null
+                    }
+
+                    if (statusText != null) {
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text = time,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = " • ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = duration,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 // Tiny waveform preview placeholder

@@ -31,6 +31,7 @@ import java.util.Locale
  * UI State for the Home Screen.
  */
 data class HomeUiState(
+    val displayName: String? = null,
     val isRecording: Boolean = false,
     val isPaused: Boolean = false,
     val isSaving: Boolean = false,
@@ -38,7 +39,8 @@ data class HomeUiState(
     val amplitude: Float = 0f,
     val errorMessage: String? = null,
     val recentRecordings: List<TimelineEntry> = emptyList(),
-    val stats: HomeStats = HomeStats()
+    val stats: HomeStats = HomeStats(),
+    val insightOfDay: com.dhaval.echo.domain.ai.TimelineInsight? = null
 )
 
 data class HomeStats(
@@ -109,7 +111,18 @@ private fun HomeScreenContent(
         verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
         item {
-            HeaderSection()
+            HeaderSection(state.displayName)
+        }
+
+        state.insightOfDay?.let { insight ->
+            item {
+                EchoInsightCard(
+                    title = insight.title,
+                    description = insight.description,
+                    type = insight.type,
+                    onClick = { /* TODO: Navigate to project/insight view */ }
+                )
+            }
         }
 
         item {
@@ -140,6 +153,8 @@ private fun HomeScreenContent(
                     time = entry.timestamp.format(DateTimeFormatter.ofPattern("HH:mm")),
                     duration = formatDuration(entry.durationMillis),
                     isFavorite = entry.isFavorite,
+                    status = entry.transcriptionStatus,
+                    description = entry.summary ?: entry.transcription,
                     onFavoriteClick = { onFavoriteClick(entry.id) },
                     onClick = { onEntryClick(entry.id) }
                 )
@@ -149,16 +164,22 @@ private fun HomeScreenContent(
 }
 
 @Composable
-private fun HeaderSection() {
+private fun HeaderSection(displayName: String?) {
     val today = LocalDate.now()
     val dayOfWeek = today.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
     val dateText = today.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault()))
     
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    val greeting = when (hour) {
-        in 0..11 -> "Good Morning, Dhaval"
-        in 12..16 -> "Good Afternoon, Dhaval"
-        else -> "Good Evening, Dhaval"
+    val greetingBase = when (hour) {
+        in 0..11 -> "Good Morning"
+        in 12..16 -> "Good Afternoon"
+        else -> "Good Evening"
+    }
+    
+    val greeting = if (displayName.isNullOrBlank()) {
+        greetingBase
+    } else {
+        "$greetingBase, $displayName"
     }
     
     EchoSectionHeader(

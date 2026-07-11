@@ -1,11 +1,9 @@
 package com.dhaval.echo.di
 
 import com.dhaval.echo.data.intelligence.MockIntelligenceService
-import com.dhaval.echo.data.intelligence.MockTranscriptionService
 import com.dhaval.echo.data.intelligence.RealIntelligenceRepository
 import com.dhaval.echo.domain.intelligence.IntelligenceRepository
 import com.dhaval.echo.domain.intelligence.IntelligenceService
-import com.dhaval.echo.domain.intelligence.TranscriptionService
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -15,12 +13,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AiModule {
-
-    @Binds
-    @Singleton
-    abstract fun bindTranscriptionService(
-        mockTranscriptionService: MockTranscriptionService
-    ): TranscriptionService
 
     @Binds
     @Singleton

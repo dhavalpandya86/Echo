@@ -3,7 +3,8 @@ package com.dhaval.echo.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tags")
+@Entity(tableName = "tags", primaryKeys = ["name", "userId"])
 data class Tag(
-    @PrimaryKey val name: String // Using name as PK for simplicity and uniqueness
+    val name: String,
+    val userId: String = "legacy_user"
 )

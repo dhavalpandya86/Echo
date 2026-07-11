@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dhaval.echo.domain.search.SearchFilter
 import com.dhaval.echo.domain.search.SearchRepository
-import com.dhaval.echo.domain.timeline.TimelineEntry
+import com.dhaval.echo.domain.search.SearchResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +20,8 @@ import javax.inject.Inject
  */
 data class SearchUiState(
     val filter: SearchFilter = SearchFilter(),
-    val results: List<TimelineEntry> = emptyList(),
+    val results: List<SearchResult> = emptyList(),
+    val suggestions: List<String> = emptyList(),
     val isSearching: Boolean = false,
     val error: String? = null
 )
@@ -36,7 +37,11 @@ class SearchViewModel @Inject constructor(
     val uiState: StateFlow<SearchUiState> = _filter
         .flatMapLatest { filter ->
             repository.search(filter).map { results ->
-                SearchUiState(filter = filter, results = results)
+                SearchUiState(
+                    filter = filter, 
+                    results = results,
+                    suggestions = if (filter.query.isEmpty()) listOf("Oceanis", "Branding", "Dubai", "SEO", "Family", "Health", "Ideas") else emptyList()
+                )
             }
         }
         .stateIn(

@@ -45,8 +45,9 @@ object AudioModule {
         recorder: Recorder,
         storageEngine: AudioStorageEngine,
         diaryEntryDao: com.dhaval.echo.data.db.DiaryEntryDao,
-        intelligenceRepository: com.dhaval.echo.domain.intelligence.IntelligenceRepository
+        intelligenceRepository: com.dhaval.echo.domain.intelligence.IntelligenceRepository,
+        authRepository: com.dhaval.echo.domain.auth.AuthRepository
     ): AudioRepository {
-        return RealAudioRepository(recorder, storageEngine, diaryEntryDao, intelligenceRepository)
+        return RealAudioRepository(recorder, storageEngine, diaryEntryDao, intelligenceRepository, authRepository)
     }
 }

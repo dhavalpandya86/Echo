@@ -5,13 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dhaval.echo.domain.timeline.TimelineEntry
 import com.dhaval.echo.domain.timeline.TimelineRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -36,24 +30,48 @@ data class TimelineUiState(
     val groupedEntries: Map<TimelineGroup, List<TimelineEntry>> = emptyMap(),
     val searchQuery: String = "",
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val relatedCounts: Map<String, Int> = emptyMap(),
+    val insights: List<com.dhaval.echo.domain.ai.TimelineInsight> = emptyList()
 )
 
 @HiltViewModel
 class TimelineViewModel @Inject constructor(
-    private val repository: TimelineRepository
+    private val repository: TimelineRepository,
+    private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
+    private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao
 ) : ViewModel() {
 
     private val searchQuery = MutableStateFlow("")
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<TimelineUiState> = searchQuery
-        .flatMapLatest { query ->
-            repository.getTimelineEntries(query).map { entries ->
+    val uiState: StateFlow<TimelineUiState> = combine(
+        searchQuery,
+        authRepository.currentUserId
+    ) { query, userId -> query to userId }
+        .flatMapLatest { (query, userId) ->
+            if (userId == null) return@flatMapLatest flowOf(TimelineUiState())
+            
+            combine(
+                repository.getTimelineEntries(query),
+                intelligenceDao.getAllInsights(userId)
+            ) { entries, insights ->
                 TimelineUiState(
                     groupedEntries = groupEntries(entries),
                     searchQuery = query,
-                    isLoading = false
+                    isLoading = false,
+                    insights = insights.map {
+                        com.dhaval.echo.domain.ai.TimelineInsight(
+                            id = it.id,
+                            title = it.title,
+                            description = it.description,
+                            type = it.type,
+                            confidence = it.confidence,
+                            relatedMemoryIds = it.relatedMemoryIds,
+                            createdAt = it.createdAt,
+                            priority = it.priority
+                        )
+                    }
                 )
             }
         }

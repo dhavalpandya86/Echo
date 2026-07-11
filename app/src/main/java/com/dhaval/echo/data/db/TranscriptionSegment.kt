@@ -18,6 +18,7 @@ import androidx.room.PrimaryKey
 data class TranscriptionSegmentEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val entryId: String,
+    val userId: String = "legacy_user",
     val startTime: Long,
     val endTime: Long,
     val text: String,

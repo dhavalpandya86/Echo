@@ -18,40 +18,60 @@ import com.dhaval.echo.ui.navigation.EchoNavGraph
 import com.dhaval.echo.ui.navigation.TopLevelDestination
 import com.dhaval.echo.ui.theme.EchoTheme
 
+import androidx.compose.runtime.collectAsState
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.dhaval.echo.domain.auth.AuthState
+import com.dhaval.echo.ui.auth.AuthViewModel
+import com.dhaval.echo.ui.navigation.*
+
 /**
  * Root Composable for the Echo application.
  * Manages global UI state, Navigation Bar, and the NavHost.
  */
 @Composable
-fun EchoApp() {
+fun EchoApp(
+    viewModel: AuthViewModel = hiltViewModel()
+) {
+    val authState by viewModel.authState.collectAsState()
+
     EchoTheme {
         val navController = rememberNavController()
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
 
+        val isAuthenticated = authState is AuthState.Authenticated
+        
         Scaffold(
             bottomBar = {
-                EchoBottomBar(
-                    destinations = TopLevelDestination.entries,
-                    onNavigateToDestination = { destination ->
-                        navController.navigate(destination.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                if (isAuthenticated && shouldShowBottomBar(currentDestination)) {
+                    EchoBottomBar(
+                        destinations = TopLevelDestination.entries,
+                        onNavigateToDestination = { destination ->
+                            navController.navigate(destination.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    currentDestination = currentDestination
-                )
+                        },
+                        currentDestination = currentDestination
+                    )
+                }
             }
         ) { innerPadding ->
             EchoNavGraph(
                 navController = navController,
+                authState = authState,
                 modifier = Modifier.padding(innerPadding)
             )
         }
     }
+}
+
+private fun shouldShowBottomBar(destination: androidx.navigation.NavDestination?): Boolean {
+    if (destination == null) return false
+    return TopLevelDestination.entries.any { destination.hasRoute(it.route::class) }
 }
 
 @Composable

@@ -2,7 +2,12 @@ package com.dhaval.echo.ui.screens
 
 import android.content.Context
 import android.provider.Settings
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -46,28 +51,44 @@ fun RecordScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.onPermissionResult(isGranted)
+    }
+
     // UI state for finishing animation
     var isFinishing by remember { mutableStateOf(false) }
     var showCheckmark by remember { mutableStateOf(false) }
+    var isSuccess by remember { mutableStateOf(false) }
 
     val reduceMotion = remember {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f) == 0f
     }
 
-    // Auto-start recording
+    // Handle Permission and Auto-start
     LaunchedEffect(Unit) {
-        if (!state.isRecording && !state.isSaving) {
-            viewModel.startRecording()
+        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+            viewModel.onPermissionResult(true)
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
     // Handle the transition from Saving to Idle with animation
     LaunchedEffect(state.isSaving) {
         if (state.isSaving) {
+            isSuccess = true
+        }
+    }
+
+    LaunchedEffect(isSuccess) {
+        if (isSuccess) {
             isFinishing = true
-            delay(1000) // Animation time for wave collapse
+            delay(800) // Animation time for wave collapse
             showCheckmark = true
-            delay(1200) // Time to see the "Memory Saved" message
+            delay(1000) // Time to see the "Memory Saved" message
             onNavigateBack()
         }
     }
@@ -140,6 +161,41 @@ fun RecordScreen(
                 },
                 onFinish = { viewModel.stopRecording() }
             )
+        }
+
+        // Error or Permission Denied Overlay
+        if (state.error != null || state.permissionDenied) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = if (state.permissionDenied) {
+                            "Unable to access microphone.\n\nPlease grant microphone permission."
+                        } else {
+                            state.error ?: "An error occurred"
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Button(onClick = onNavigateBack) {
+                        Text("Go Back")
+                    }
+                }
+            }
         }
 
         // Overlay for Memory Saved

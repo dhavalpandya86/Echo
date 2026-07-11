@@ -6,7 +6,7 @@ import androidx.room.Index
 
 @Entity(
     tableName = "diary_entry_tag_cross_ref",
-    primaryKeys = ["entryId", "tagName"],
+    primaryKeys = ["entryId", "tagName", "userId"],
     foreignKeys = [
         ForeignKey(
             entity = DiaryEntry::class,
@@ -16,17 +16,18 @@ import androidx.room.Index
         ),
         ForeignKey(
             entity = Tag::class,
-            parentColumns = ["name"],
-            childColumns = ["tagName"],
+            parentColumns = ["name", "userId"],
+            childColumns = ["tagName", "userId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
         Index("entryId"),
-        Index("tagName")
+        Index("tagName", "userId")
     ]
 )
 data class DiaryEntryTagCrossRef(
     val entryId: String,
-    val tagName: String
+    val tagName: String,
+    val userId: String = "legacy_user"
 )

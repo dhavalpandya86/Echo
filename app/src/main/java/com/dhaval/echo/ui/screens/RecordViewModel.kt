@@ -5,10 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dhaval.echo.domain.audio.AudioRepository
 import com.dhaval.echo.domain.audio.RecordingState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import javax.inject.Inject
 
 /**
@@ -20,7 +17,9 @@ data class RecordUiState(
     val durationMillis: Long = 0,
     val amplitude: Float = 0f,
     val isSaving: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val requiresPermission: Boolean = false,
+    val permissionDenied: Boolean = false
 )
 
 /**
@@ -32,29 +31,54 @@ class RecordViewModel @Inject constructor(
     private val audioRepository: AudioRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<RecordUiState> = audioRepository.currentRecordingState
-        .map { state ->
-            when (state) {
-                is RecordingState.Idle -> RecordUiState()
-                is RecordingState.Recording -> RecordUiState(
-                    isRecording = true,
-                    isPaused = state.isPaused,
-                    durationMillis = state.durationMillis,
-                    amplitude = state.amplitude
-                )
-                is RecordingState.Saving -> RecordUiState(isSaving = true)
-                is RecordingState.Error -> RecordUiState(error = state.message)
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = RecordUiState()
-        )
+    private val _permissionState = MutableStateFlow(PermissionStatus.Unknown)
 
-    fun startRecording() = audioRepository.startCapture()
+    val uiState: StateFlow<RecordUiState> = combine(
+        audioRepository.currentRecordingState,
+        _permissionState
+    ) { state, permission ->
+        when (state) {
+            is RecordingState.Idle -> RecordUiState(
+                requiresPermission = permission == PermissionStatus.Unknown,
+                permissionDenied = permission == PermissionStatus.Denied
+            )
+            is RecordingState.Recording -> RecordUiState(
+                isRecording = true,
+                isPaused = state.isPaused,
+                durationMillis = state.durationMillis,
+                amplitude = state.amplitude
+            )
+            is RecordingState.Saving -> RecordUiState(isSaving = true)
+            is RecordingState.Error -> RecordUiState(error = state.message)
+        }
+    }
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = RecordUiState()
+    )
+
+    fun onPermissionResult(granted: Boolean) {
+        _permissionState.value = if (granted) PermissionStatus.Granted else PermissionStatus.Denied
+        if (granted) {
+            startRecording()
+        }
+    }
+
+    fun startRecording() {
+        if (_permissionState.value == PermissionStatus.Granted) {
+            audioRepository.startCapture()
+        } else {
+            _permissionState.value = PermissionStatus.Unknown
+        }
+    }
+
     fun pauseRecording() = audioRepository.pauseCapture()
     fun resumeRecording() = audioRepository.resumeCapture()
     fun stopRecording() = audioRepository.stopCapture()
     fun cancelRecording() = audioRepository.discardCapture()
+
+    enum class PermissionStatus {
+        Unknown, Granted, Denied
+    }
 }

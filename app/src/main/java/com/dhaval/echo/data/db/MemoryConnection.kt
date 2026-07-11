@@ -4,6 +4,9 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
+import com.dhaval.echo.domain.ai.RelationshipType
+import java.time.LocalDateTime
+
 /**
  * Represents a semantic connection between two memories.
  */
@@ -32,6 +35,9 @@ import androidx.room.Index
 data class MemoryConnection(
     val fromEntryId: String,
     val toEntryId: String,
+    val userId: String = "legacy_user",
     val similarity: Float,
-    val connectionReason: String? = null
+    val type: RelationshipType = RelationshipType.RELATED,
+    val connectionReason: String? = null,
+    val createdAt: LocalDateTime = LocalDateTime.now()
 )
