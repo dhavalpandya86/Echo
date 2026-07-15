@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import android.util.Log
+import com.dhaval.echo.MainActivity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -64,7 +65,12 @@ fun EchoNavGraph(
             val authViewModel: AuthViewModel = hiltViewModel()
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
+            
+            // Get the Singleton helpers from Hilt
             val googleAuthHelper = remember { GoogleAuthHelper(context) }
+            val activity = context as? MainActivity
+            val facebookAuthHelper = activity?.facebookAuthHelper
+
             val error by authViewModel.error.collectAsState()
 
             WelcomeScreen(
@@ -74,14 +80,27 @@ fun EchoNavGraph(
                 onGoogleSignIn = {
                     scope.launch {
                         Log.d("EchoNavGraph", "Google Sign-In clicked")
-                        val idToken = googleAuthHelper.signIn()
-                        Log.d("EchoNavGraph", "ID Token received: ${idToken != null}")
-                        idToken?.let { token ->
-                            authViewModel.loginWithGoogle(token)
+                        googleAuthHelper.signIn()
+                            .onSuccess { token ->
+                                Log.d("EchoNavGraph", "ID Token received successfully")
+                                authViewModel.loginWithGoogle(token)
+                            }
+                            .onFailure { error ->
+                                Log.e("EchoNavGraph", "Google Sign-In failed", error)
+                                authViewModel.setError(error.message ?: "Google Sign-In failed")
+                            }
+                    }
+                },
+                onFacebookSignIn = {
+                    scope.launch {
+                        if (activity != null && facebookAuthHelper != null) {
+                            val token = facebookAuthHelper.signIn(activity)
+                            token?.let {
+                                authViewModel.loginWithFacebook(it)
+                            }
                         }
                     }
                 },
-                onFacebookSignIn = { /* TODO */ },
                 error = error
             )
         }
