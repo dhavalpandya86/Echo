@@ -21,7 +21,8 @@ class SessionManager @Inject constructor(
     private val collectionDao: CollectionDao,
     private val intelligenceDao: IntelligenceDao,
     private val conversationDao: ConversationDao,
-    private val userDao: UserDao
+    private val userDao: UserDao,
+    private val userRepository: com.dhaval.echo.domain.user.UserRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
 
@@ -52,6 +53,7 @@ class SessionManager @Inject constructor(
                 createdAt = currentUser.createdAt
             )
             userDao.insertProfile(profile)
+            userRepository.syncProfile(userId)
         }
     }
 

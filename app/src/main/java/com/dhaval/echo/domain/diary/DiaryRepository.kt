@@ -11,4 +11,5 @@ interface DiaryRepository {
     suspend fun updateTitle(id: String, title: String)
     suspend fun toggleFavorite(id: String)
     suspend fun deleteEntry(id: String)
+    suspend fun createTextEntry(title: String, textContent: String, imagePaths: List<String> = emptyList()): String
 }

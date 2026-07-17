@@ -9,34 +9,56 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 
 /**
- * Echo Premium Dark Color Scheme.
+ * Light scheme — Paper canvas, warm Surface cards, Echo Indigo primary.
+ * Indigo is deliberately scarce: one primary action per screen.
  */
-private val EchoDarkColorScheme = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = DarkOnPrimary,
-    secondary = DarkSecondary,
-    onSecondary = DarkOnSurface,
-    background = DarkBackground,
-    surface = DarkSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onBackground = DarkOnSurface,
-    onSurface = DarkOnSurface,
-    outline = DarkOutline,
-    error = DarkError
+private val EchoLightColorScheme = lightColorScheme(
+    primary = EchoIndigo,
+    onPrimary = EchoPaper,
+    primaryContainer = EchoMist,
+    onPrimaryContainer = EchoIndigoDeep,
+    secondary = EchoLavender,
+    onSecondary = EchoInk,
+    secondaryContainer = EchoMist,
+    onSecondaryContainer = EchoIndigoDeep,
+    tertiary = EchoIndigoDeep,
+    onTertiary = EchoPaper,
+    background = EchoPaper,
+    onBackground = EchoInk,
+    surface = EchoPaper,
+    onSurface = EchoInk,
+    surfaceVariant = EchoSurface,
+    onSurfaceVariant = EchoSlate,
+    outline = EchoSlate,
+    outlineVariant = EchoSurface,
+    error = EchoError,
+    onError = EchoPaper,
 )
 
 /**
- * Echo Premium Light Color Scheme.
- * Warm paper white background with soft indigo accents.
+ * Dark scheme — "Night". Indigo lightens for contrast, mark goes Lavender.
  */
-private val EchoLightColorScheme = lightColorScheme(
-    primary = EchoDeepIndigo,
-    onPrimary = EchoPaperWhite,
-    secondary = EchoSoftLavender,
-    background = EchoPaperWhite,
-    surface = EchoWarmSurface,
-    onBackground = EchoInkBlack,
-    onSurface = EchoInkBlack,
+private val EchoDarkColorScheme = darkColorScheme(
+    primary = EchoIndigoLight,
+    onPrimary = EchoNight,
+    primaryContainer = EchoNightMist,
+    onPrimaryContainer = EchoLavender,
+    secondary = EchoLavender,
+    onSecondary = EchoNight,
+    secondaryContainer = EchoNightMist,
+    onSecondaryContainer = EchoLavender,
+    tertiary = EchoLavender,
+    onTertiary = EchoNight,
+    background = EchoNight,
+    onBackground = EchoNightText,
+    surface = EchoNight,
+    onSurface = EchoNightText,
+    surfaceVariant = EchoNightSurface,
+    onSurfaceVariant = EchoNightSecondary,
+    outline = EchoNightSecondary,
+    outlineVariant = EchoNightSurface,
+    error = EchoError,
+    onError = EchoNightText,
 )
 
 /**

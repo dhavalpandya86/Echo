@@ -1,35 +1,28 @@
 package com.dhaval.echo.ui.screens
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dhaval.echo.domain.timeline.TimelineEntry
 import com.dhaval.echo.ui.components.*
-import com.dhaval.echo.ui.theme.EchoTheme
 import com.dhaval.echo.ui.theme.echoBreathe
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/**
- * UI State for the Home Screen.
- */
 data class HomeUiState(
     val displayName: String? = null,
     val isRecording: Boolean = false,
@@ -52,13 +45,16 @@ data class HomeStats(
 @Composable
 fun HomeScreen(
     onNavigateToRecord: () -> Unit,
+    onNavigateToTextEntry: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToCollections: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onNavigateToEntry: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    var fabExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -69,27 +65,128 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToSearch) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
-                    IconButton(onClick = { /* TODO: Settings */ }) {
+                    IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
         },
         floatingActionButton = {
-            EchoRecordFAB(
-                onClick = onNavigateToRecord,
-                modifier = Modifier
-                    .padding(16.dp)
-                    .echoBreathe()
+            ExpandableFab(
+                expanded = fabExpanded,
+                onToggle = { fabExpanded = !fabExpanded },
+                onVoice = {
+                    fabExpanded = false
+                    onNavigateToRecord()
+                },
+                onText = {
+                    fabExpanded = false
+                    onNavigateToTextEntry()
+                }
             )
         }
     ) { innerPadding ->
+        if (fabExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { fabExpanded = false }
+                    )
+            )
+        }
         HomeScreenContent(
             state = state,
             paddingValues = innerPadding,
             onEntryClick = onNavigateToEntry,
             onFavoriteClick = viewModel::toggleFavorite
         )
+    }
+}
+
+@Composable
+private fun ExpandableFab(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onVoice: () -> Unit,
+    onText: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(bottom = 8.dp)
+    ) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.7f),
+            exit = fadeOut(tween(100)) + scaleOut(targetScale = 0.7f)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MiniFabItem(
+                    icon = Icons.Default.Edit,
+                    label = "Write",
+                    onClick = onText
+                )
+                MiniFabItem(
+                    icon = Icons.Default.Mic,
+                    label = "Record",
+                    onClick = onVoice
+                )
+            }
+        }
+
+        FloatingActionButton(
+            onClick = onToggle,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = if (!expanded) Modifier.echoBreathe() else Modifier
+        ) {
+            AnimatedContent(targetState = expanded, label = "fab_icon") { isExpanded ->
+                if (isExpanded) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                } else {
+                    Icon(Icons.Default.Add, contentDescription = "New Entry")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniFabItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            tonalElevation = 2.dp
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        SmallFloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+        }
     }
 }
 
@@ -104,15 +201,13 @@ private fun HomeScreenContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             top = paddingValues.calculateTopPadding(),
-            bottom = paddingValues.calculateBottomPadding() + 100.dp,
+            bottom = paddingValues.calculateBottomPadding() + 120.dp,
             start = 24.dp,
             end = 24.dp
         ),
         verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
-        item {
-            HeaderSection(state.displayName)
-        }
+        item { HeaderSection(state.displayName) }
 
         state.insightOfDay?.let { insight ->
             item {
@@ -120,14 +215,12 @@ private fun HomeScreenContent(
                     title = insight.title,
                     description = insight.description,
                     type = insight.type,
-                    onClick = { /* TODO: Navigate to project/insight view */ }
+                    onClick = {}
                 )
             }
         }
 
-        item {
-            StatsSection(state.stats)
-        }
+        item { StatsSection(state.stats) }
 
         item {
             Text(
@@ -142,7 +235,7 @@ private fun HomeScreenContent(
             item {
                 EchoEmptyState(
                     message = "No memories yet.",
-                    description = "Press the microphone and speak your mind.",
+                    description = "Tap + to record your voice or write your thoughts.",
                     icon = Icons.Default.Mic
                 )
             }
@@ -151,10 +244,10 @@ private fun HomeScreenContent(
                 EchoTimelineCard(
                     title = entry.title,
                     time = entry.timestamp.format(DateTimeFormatter.ofPattern("HH:mm")),
-                    duration = formatDuration(entry.durationMillis),
+                    duration = if (entry.entryType == "VOICE") formatDuration(entry.durationMillis) else entry.entryType.lowercase().replaceFirstChar { it.uppercaseChar() },
                     isFavorite = entry.isFavorite,
                     status = entry.transcriptionStatus,
-                    description = entry.summary ?: entry.transcription,
+                    description = entry.summary ?: entry.transcription ?: entry.textContent?.take(120),
                     onFavoriteClick = { onFavoriteClick(entry.id) },
                     onClick = { onEntryClick(entry.id) }
                 )
@@ -168,20 +261,13 @@ private fun HeaderSection(displayName: String?) {
     val today = LocalDate.now()
     val dayOfWeek = today.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
     val dateText = today.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault()))
-    
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greetingBase = when (hour) {
         in 0..11 -> "Good Morning"
         in 12..16 -> "Good Afternoon"
         else -> "Good Evening"
     }
-    
-    val greeting = if (displayName.isNullOrBlank()) {
-        greetingBase
-    } else {
-        "$greetingBase, $displayName"
-    }
-    
+    val greeting = if (displayName.isNullOrBlank()) greetingBase else "$greetingBase, $displayName"
     EchoSectionHeader(
         title = greeting,
         subtitle = "$dayOfWeek, $dateText",
@@ -191,25 +277,10 @@ private fun HeaderSection(displayName: String?) {
 
 @Composable
 private fun StatsSection(stats: HomeStats) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        StatCard(
-            label = "Today",
-            value = stats.todayCount.toString(),
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            label = "Total",
-            value = stats.totalCount.toString(),
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            label = "Streak",
-            value = "${stats.streakDays}d",
-            modifier = Modifier.weight(1f)
-        )
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        StatCard(label = "Today", value = stats.todayCount.toString(), modifier = Modifier.weight(1f))
+        StatCard(label = "Total", value = stats.totalCount.toString(), modifier = Modifier.weight(1f))
+        StatCard(label = "Streak", value = "${stats.streakDays}d", modifier = Modifier.weight(1f))
     }
 }
 
@@ -220,16 +291,8 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Column {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.secondary
-            )
+            Text(text = value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
         }
     }
 }

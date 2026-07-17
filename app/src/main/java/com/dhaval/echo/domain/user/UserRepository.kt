@@ -6,4 +6,5 @@ import kotlinx.coroutines.flow.Flow
 interface UserRepository {
     fun getUserProfile(): Flow<UserProfile?>
     suspend fun updateDisplayName(name: String)
+    suspend fun syncProfile(userId: String)
 }

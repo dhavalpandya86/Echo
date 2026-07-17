@@ -23,7 +23,7 @@ object DatabaseModule {
             EchoDatabase::class.java,
             EchoDatabase.DATABASE_NAME
         )
-        .addMigrations(EchoDatabase.MIGRATION_8_9)
+        .addMigrations(EchoDatabase.MIGRATION_8_9, EchoDatabase.MIGRATION_9_10)
         .fallbackToDestructiveMigration() // Strategy for initial dev phase
         .build()
     }

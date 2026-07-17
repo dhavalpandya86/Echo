@@ -66,6 +66,9 @@ object ConversationRoute
 @Serializable
 data class CollectionDetailsRoute(val collectionId: String)
 
+@Serializable
+object TextEntryRoute
+
 /**
  * Top-level destinations represented in the Bottom Navigation Bar.
  */

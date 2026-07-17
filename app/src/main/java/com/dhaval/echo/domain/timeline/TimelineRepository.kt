@@ -20,7 +20,10 @@ data class TimelineEntry(
     val analysisStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED,
     val relatedMemoriesCount: Int = 0,
     val isSynced: Boolean = false,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val textContent: String? = null,
+    val imagePaths: List<String>? = null,
+    val entryType: String = "VOICE"
 )
 
 /**

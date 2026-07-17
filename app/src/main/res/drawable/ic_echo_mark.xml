@@ -1,0 +1,24 @@
+<!-- Echo brand mark: seed + inner ring + golden-angle open outer ring.
+     Single color; tint at usage site (ink / paper / indigo / lavender / slate). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96"
+    android:tint="#1A1A1A">
+    <!-- The seed (center dot, r7) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M41,48 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 Z" />
+    <!-- Inner ring (r21, stroke 8) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:pathData="M27,48 a21,21 0 1,0 42,0 a21,21 0 1,0 -42,0" />
+    <!-- Outer ring with the golden opening (r36, stroke 8, round caps) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:pathData="M67.08,17.47 A36,36 0 1 1 18.73,27.04" />
+</vector>

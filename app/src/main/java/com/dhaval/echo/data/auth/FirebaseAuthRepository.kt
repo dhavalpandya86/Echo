@@ -18,32 +18,26 @@ class FirebaseAuthRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth
 ) : AuthRepository {
 
-    private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
-    override val authState: StateFlow<AuthState> = _authState.asStateFlow()
-
-    override val currentUserId: Flow<String?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            trySend(auth.currentUser?.uid)
-        }
-        firebaseAuth.addAuthStateListener(listener)
-        awaitClose { firebaseAuth.removeAuthStateListener(listener) }
-    }.stateIn(
-        scope = kotlinx.coroutines.GlobalScope, // Should be a proper scope from Hilt
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = firebaseAuth.currentUser?.uid
+    // --- DEVELOPMENT BYPASS: Hardcoded Guest User ---
+    private val devUser = User(
+        id = "dev_user_123",
+        displayName = "Guest Developer",
+        email = "dev@example.com",
+        phoneNumber = null,
+        photoUrl = null,
+        authProviders = listOf(AuthProvider.EMAIL),
+        createdAt = System.currentTimeMillis()
     )
 
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Authenticated(devUser))
+    override val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    override val currentUserId: Flow<String?> = flowOf("dev_user_123")
+
     init {
-        firebaseAuth.addAuthStateListener { auth ->
-            val user = auth.currentUser
-            Log.d("FirebaseAuthRepository", "AuthState changed: user=${user?.uid}")
-            _authState.value = if (user != null) {
-                AuthState.Authenticated(user.toDomainUser())
-            } else {
-                AuthState.Unauthenticated
-            }
-        }
+        Log.d("FirebaseAuthRepository", "INITIALIZED IN GUEST MODE for development")
     }
+    // ------------------------------------------------
 
     override suspend fun createEmailAccount(name: String, email: String, password: String): Result<User> {
         return try {
@@ -102,15 +96,18 @@ class FirebaseAuthRepository @Inject constructor(
         Log.d("FirebaseAuthRepository", "loginWithGoogle started with token: ${idToken.take(10)}...")
         return try {
             val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-            Log.d("FirebaseAuthRepository", "Credential created, signing in...")
+            Log.d("FirebaseAuthRepository", "Credential created, signing in with Firebase...")
             val result = firebaseAuth.signInWithCredential(credential).await()
             val firebaseUser = result.user ?: throw Exception("Google login failed: user is null")
             Log.d("FirebaseAuthRepository", "Sign-in successful for user: ${firebaseUser.uid}")
             
-            // Ensure profile exists
-            val user = firebaseUser.toDomainUser()
-            
-            Result.success(user)
+            Result.success(firebaseUser.toDomainUser())
+        } catch (e: com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+            Log.e("FirebaseAuthRepository", "Google login error: User disabled", e)
+            Result.failure(Exception("This account has been disabled."))
+        } catch (e: com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+            Log.e("FirebaseAuthRepository", "Google login error: Invalid credentials (likely Client ID mismatch or SHA-1 issue)", e)
+            Result.failure(Exception("Authentication failed. This is usually due to a configuration mismatch between the app and Firebase console."))
         } catch (e: Exception) {
             Log.e("FirebaseAuthRepository", "Google login error", e)
             Result.failure(e)
@@ -138,7 +135,7 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     override suspend fun getCurrentUser(): User? {
-        return firebaseAuth.currentUser?.toDomainUser()
+        return devUser
     }
 
     private fun FirebaseUser.toDomainUser(): User {

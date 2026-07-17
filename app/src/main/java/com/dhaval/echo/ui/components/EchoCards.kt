@@ -15,30 +15,34 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dhaval.echo.domain.ai.IntelligenceStatus
+import com.dhaval.echo.ui.theme.EchoInk
 
 /**
- * Premium Card with 24dp rounding and soft elevation.
+ * Echo brand card: 14dp radius, Surface-on-Paper by default (never white-on-white),
+ * with a soft ink-tinted shadow. Quiet press feedback, no bounce.
  */
 @Composable
 fun EchoCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    containerColor: Color = MaterialTheme.colorScheme.surface,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        targetValue = if (isPressed) 0.985f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy),
         label = "card_scale"
     )
 
+    val shape = RoundedCornerShape(14.dp)
     Card(
         onClick = onClick ?: {},
         enabled = onClick != null,
@@ -47,8 +51,15 @@ fun EchoCard(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            },
-        shape = RoundedCornerShape(24.dp),
+            }
+            .shadow(
+                elevation = 2.dp,
+                shape = shape,
+                ambientColor = EchoInk,
+                spotColor = EchoInk,
+                clip = false
+            ),
+        shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
@@ -56,7 +67,7 @@ fun EchoCard(
         interactionSource = interactionSource
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(20.dp),
             content = content
         )
     }

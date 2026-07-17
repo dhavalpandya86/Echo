@@ -25,7 +25,9 @@ data class EntryDetailsUiState(
     val formattedDate: String = "",
     val tags: List<String> = emptyList(),
     val collections: List<EchoCollection> = emptyList(),
-    val relatedEntries: List<TimelineEntry> = emptyList()
+    val relatedEntries: List<TimelineEntry> = emptyList(),
+    val segments: List<com.dhaval.echo.data.db.TranscriptionSegmentEntity> = emptyList(),
+    val classification: com.dhaval.echo.data.db.MemoryClassificationEntity? = null
 )
 
 @HiltViewModel
@@ -67,7 +69,10 @@ class EntryDetailsViewModel @Inject constructor(
                     analysisStatus = entry.analysisStatus,
                     relatedMemoriesCount = related.size,
                     isSynced = false,
-                    isFavorite = entry.favorite
+                    isFavorite = entry.favorite,
+                    textContent = entry.textContent,
+                    imagePaths = entry.imagePaths,
+                    entryType = entry.entryType
                 ),
                 isLoading = false,
                 formattedDate = entry.createdAt.format(dateFormatter),
@@ -84,9 +89,10 @@ class EntryDetailsViewModel @Inject constructor(
                         summary = it.summary,
                         transcriptionStatus = it.transcriptionStatus,
                         analysisStatus = it.analysisStatus,
-                        relatedMemoriesCount = 0, // Not needed for related entries list
+                        relatedMemoriesCount = 0,
                         isSynced = false,
-                        isFavorite = it.favorite
+                        isFavorite = it.favorite,
+                        entryType = it.entryType
                     )
                 }
             )

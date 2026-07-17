@@ -1,26 +1,36 @@
 {
   "project_info": {
-    "project_number": "994516006717",
-    "project_id": "echo-c015579c",
-    "storage_bucket": "echo-c015579c.firebasestorage.app"
+    "project_number": "307035484838",
+    "project_id": "echo-3d4570d5",
+    "storage_bucket": "echo-3d4570d5.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:994516006717:android:aaf8924798ed56c2393754",
+        "mobilesdk_app_id": "1:307035484838:android:f21bf1413d8e166b577a67",
         "android_client_info": {
           "package_name": "com.dhaval.echo"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "307035484838-s9cckj4ihba00jhalgkcgqo7hecao0ka.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyAyDLap0pOVEbrD5Jwj1Ald6Y_zBSixJ64"
+          "current_key": "AIzaSyDSXhzrri9zrhdpCxRFRuEikX6uIhvPnbk"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "307035484838-s9cckj4ihba00jhalgkcgqo7hecao0ka.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

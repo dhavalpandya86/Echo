@@ -5,9 +5,6 @@ import androidx.room.PrimaryKey
 import com.dhaval.echo.domain.ai.IntelligenceStatus
 import java.time.LocalDateTime
 
-/**
- * Room Entity representing a recording in the database.
- */
 @Entity(tableName = "diary_entries")
 data class DiaryEntry(
     @PrimaryKey val id: String,
@@ -20,12 +17,23 @@ data class DiaryEntry(
     val favorite: Boolean = false,
     val deleted: Boolean = false,
     val language: String? = null,
-    
+
     // AI Content
     val transcript: String? = null,
     val summary: String? = null,
-    
+
     // Status
     val transcriptionStatus: IntelligenceStatus = IntelligenceStatus.PENDING,
-    val analysisStatus: IntelligenceStatus = IntelligenceStatus.PENDING
+    val analysisStatus: IntelligenceStatus = IntelligenceStatus.PENDING,
+
+    // Rich content (DB version 10)
+    val textContent: String? = null,
+    val imagePaths: List<String>? = null,
+    val entryType: String = EntryType.VOICE
 )
+
+object EntryType {
+    const val VOICE = "VOICE"
+    const val TEXT = "TEXT"
+    const val MIXED = "MIXED"
+}

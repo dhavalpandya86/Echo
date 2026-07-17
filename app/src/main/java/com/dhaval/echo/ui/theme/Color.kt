@@ -3,47 +3,47 @@ package com.dhaval.echo.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Echo 2026 Modern Expressive Brand Palette.
- * Vibrant, energetic, and tactile colors for the next generation.
+ * Echo Brand System v2.0 palette.
+ *
+ * A warm, quiet, premium identity: paper canvas, indigo spent on one action per
+ * screen, ink text, lavender highlights. See the brand kit for usage rules.
  */
 
-// Core Neutrals (Tinted for depth)
-val EchoMidnight = Color(0xFF09090B)   // Deep, tinted neutral black
-val EchoSoftPaper = Color(0xFFFDFCFB)  // Warm, elevated neutral white
-val EchoGhostGray = Color(0xFFF4F4F5)  // Light tinted surface gray
-val EchoSlateMuted = Color(0xFF71717A) // Functional muted text
+// ── Core light palette ────────────────────────────────────────────────
+val EchoPaper = Color(0xFFFAF8F5)     // canvas / backgrounds (~70%)
+val EchoSurface = Color(0xFFF3EFEA)   // cards / surfaces (~15%)
+val EchoMist = Color(0xFFECE8F3)      // selected / active tint
+val EchoIndigo = Color(0xFF5A5DF0)    // primary — one action per screen
+val EchoIndigoDeep = Color(0xFF4045D8) // pressed, links, running indigo text
+val EchoLavender = Color(0xFFB6AEFF)  // highlight only
+val EchoInk = Color(0xFF1A1A1A)       // primary text
+val EchoSlate = Color(0xFF666666)     // secondary text
 
-// Brand Accents (Vibrant & Energetic)
-val EchoElectricViolet = Color(0xFF7C3AED) // Primary vibrant violet
-val EchoElectricVioletPressed = Color(0xFF6D28D9)
-val EchoSoftLavender = Color(0xFFDDD6FE)   // Secondary soft accent
-val EchoNeonMint = Color(0xFF10B981)      // Success / Growth accent
-val EchoWarningCoral = Color(0xFFFB7185)   // Error / Warning accent
+// ── Dark theme — "Night" ──────────────────────────────────────────────
+val EchoNight = Color(0xFF16151A)         // dark canvas
+val EchoNightSurface = Color(0xFF211F26)  // dark cards
+val EchoNightMist = Color(0xFF2A2830)     // dark selected tint
+val EchoIndigoLight = Color(0xFF8B8DF5)   // indigo lightened for dark contrast
+val EchoNightText = Color(0xFFF3EFEA)     // text on night
+val EchoNightSecondary = Color(0xFFA5A1AC) // secondary text on night
 
-// Legacy / Design System Aliases
-val EchoDeepIndigo = Color(0xFF312E81)
-val EchoPaperWhite = EchoSoftPaper
-val EchoInkBlack = EchoMidnight
-val EchoWarmSurface = EchoGhostGray
+// ── Semantic ──────────────────────────────────────────────────────────
+val EchoSuccess = Color(0xFF3E7C4F)
+val EchoWarning = Color(0xFFA8742C)
+val EchoError = Color(0xFFC4402F)
+val EchoInfo = Color(0xFF4045D8)
 
-// Light Theme Palette
-val LightBackground = EchoSoftPaper
-val LightSurface = EchoGhostGray
-val LightSurfaceVariant = EchoGhostGray
-val LightPrimary = EchoElectricViolet
-val LightOnPrimary = Color.White
-val LightSecondary = EchoSoftLavender
-val LightOnSurface = EchoMidnight
-val LightOutline = EchoSlateMuted
-val LightError = EchoWarningCoral
-
-// Dark Theme Palette (Deep Tinted Dark)
-val DarkBackground = Color(0xFF020617) // Slate 950
-val DarkSurface = Color(0xFF0F172A)    // Slate 900
-val DarkSurfaceVariant = Color(0xFF1E293B)
-val DarkPrimary = Color(0xFFA78BFA)    // Violet 400
-val DarkOnPrimary = Color.White
-val DarkSecondary = Color(0xFF475569)
-val DarkOnSurface = Color(0xFFF8FAFC)
-val DarkOutline = Color(0xFF334155)
-val DarkError = EchoWarningCoral
+// ── Legacy aliases (kept so existing references keep compiling) ─────────
+@Deprecated("Use EchoInk", ReplaceWith("EchoInk")) val EchoMidnight = EchoInk
+@Deprecated("Use EchoPaper", ReplaceWith("EchoPaper")) val EchoSoftPaper = EchoPaper
+@Deprecated("Use EchoSurface", ReplaceWith("EchoSurface")) val EchoGhostGray = EchoSurface
+@Deprecated("Use EchoSlate", ReplaceWith("EchoSlate")) val EchoSlateMuted = EchoSlate
+@Deprecated("Use EchoIndigo", ReplaceWith("EchoIndigo")) val EchoElectricViolet = EchoIndigo
+@Deprecated("Use EchoIndigoDeep", ReplaceWith("EchoIndigoDeep")) val EchoElectricVioletPressed = EchoIndigoDeep
+@Deprecated("Use EchoLavender", ReplaceWith("EchoLavender")) val EchoSoftLavender = EchoLavender
+@Deprecated("Use EchoSuccess", ReplaceWith("EchoSuccess")) val EchoNeonMint = EchoSuccess
+@Deprecated("Use EchoError", ReplaceWith("EchoError")) val EchoWarningCoral = EchoError
+@Deprecated("Use EchoIndigo", ReplaceWith("EchoIndigo")) val EchoDeepIndigo = EchoIndigo
+@Deprecated("Use EchoPaper", ReplaceWith("EchoPaper")) val EchoPaperWhite = EchoPaper
+@Deprecated("Use EchoInk", ReplaceWith("EchoInk")) val EchoInkBlack = EchoInk
+@Deprecated("Use EchoSurface", ReplaceWith("EchoSurface")) val EchoWarmSurface = EchoSurface

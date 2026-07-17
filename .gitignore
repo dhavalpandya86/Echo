@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Signing — never commit the release keystore or its passwords
+*.jks
+*.keystore
+keystore.properties
+
+# Design handoff bundles (exports, not source)
+*.zip
+Echo Brand Identity Design-handoff/
+
+# Tooling scratch
+.artifacts/
+.idea/claudeCodeEditorTabs.xml

@@ -16,27 +16,25 @@ class GoogleAuthHelper(private val context: Context) {
     private val credentialManager = CredentialManager.create(context)
 
     // Actual Web Client ID from Firebase/Google Cloud Console
-    // Note: Ensure this matches the Web Client ID in your Google Cloud Console for the same project.
-    private val WEB_CLIENT_ID = "994516006717-m1482uhdkfluvqfmrkn8r4etem0u2jvf.apps.googleusercontent.com"
+    private val WEB_CLIENT_ID = "307035484838-s9cckj4ihba00jhalgkcgqo7hecao0ka.apps.googleusercontent.com"
 
-    suspend fun signIn(): Result<String> = withContext(Dispatchers.IO) {
-        Log.d("GoogleAuthHelper", "signIn started")
+    suspend fun signIn(activityContext: Context): Result<String> = withContext(Dispatchers.IO) {
+        Log.d("GoogleAuthHelper", "signIn started with context: ${activityContext::class.java.simpleName}")
         try {
             val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(WEB_CLIENT_ID)
                 .setAutoSelectEnabled(false)
                 .build()
-            Log.d("GoogleAuthHelper", "GetGoogleIdOption created")
 
             val request: GetCredentialRequest = GetCredentialRequest.Builder()
                 .addCredentialOption(googleIdOption)
                 .build()
-            Log.d("GoogleAuthHelper", "GetCredentialRequest created, calling getCredential...")
 
+            Log.d("GoogleAuthHelper", "Calling getCredential...")
             val result = credentialManager.getCredential(
                 request = request,
-                context = context
+                context = activityContext
             )
             Log.d("GoogleAuthHelper", "getCredential returned successfully")
             
@@ -48,10 +46,15 @@ class GoogleAuthHelper(private val context: Context) {
             }
         } catch (e: NoCredentialException) {
             Log.e("GoogleAuthHelper", "No accounts found", e)
-            Result.failure(Exception("No Google accounts found on this device"))
+            Result.failure(Exception("No Google accounts found on this device. Please add a Google account in settings."))
         } catch (e: GetCredentialException) {
-            Log.e("GoogleAuthHelper", "Credential Manager error: ${e.type}", e)
-            Result.failure(Exception("Google Sign-In error: ${e.message}"))
+            Log.e("GoogleAuthHelper", "Credential Manager error: [${e.type}] ${e.message}", e)
+            val friendlyMessage = when {
+                e.type.contains("androidx.credentials.TYPE_GET_CREDENTIAL_CANCELED_EXCEPTION") -> "Sign-in cancelled"
+                e.type.contains("androidx.credentials.TYPE_GET_CREDENTIAL_INTERRUPTED_EXCEPTION") -> "Sign-in interrupted"
+                else -> "Google Sign-In error: ${e.message ?: "Unknown error"}"
+            }
+            Result.failure(Exception(friendlyMessage))
         } catch (e: Exception) {
             Log.e("GoogleAuthHelper", "Unexpected error during signIn", e)
             Result.failure(e)

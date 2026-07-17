@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,11 +15,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.dhaval.echo.data.db.EntryType
 import com.dhaval.echo.domain.ai.IntelligenceStatus
 import com.dhaval.echo.ui.components.*
 import com.dhaval.echo.ui.theme.EchoTheme
@@ -92,17 +97,31 @@ fun EntryDetailsScreen(
                         onRenameClick = { showRenameDialog = true }
                     )
 
+                    // Text content for TEXT/MIXED entries
+                    if (!it.textContent.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        TextContentSection(it.textContent)
+                    }
+
+                    // Image gallery for entries with photos
+                    if (!it.imagePaths.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        ImageGallerySection(it.imagePaths)
+                    }
+
                     if (!it.summary.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(24.dp))
                         SummarySection(it.summary)
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    PlaybackCard(
-                        state = playbackState,
-                        viewModel = playbackViewModel
-                    )
+                    // Only show playback for VOICE / MIXED entries with audio
+                    if (it.entryType == EntryType.VOICE || (it.entryType == EntryType.MIXED && it.audioPath.isNotBlank())) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        PlaybackCard(
+                            state = playbackState,
+                            viewModel = playbackViewModel
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(32.dp))
 
@@ -170,6 +189,60 @@ fun EntryDetailsScreen(
 }
 
 @Composable
+private fun TextContentSection(text: String) {
+    Column {
+        Text(
+            text = "Entry",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 28.sp),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun ImageGallerySection(imagePaths: List<String>) {
+    Column {
+        Text(
+            text = "Photos",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(12.dp))
+        val columns = 3
+        val rows = (imagePaths.size + columns - 1) / columns
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            repeat(rows) { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(columns) { col ->
+                        val index = row * columns + col
+                        if (index < imagePaths.size) {
+                            AsyncImage(
+                                model = imagePaths[index],
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SummarySection(summary: String) {
     Column {
         Text(
@@ -210,7 +283,7 @@ private fun EntryHeader(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )

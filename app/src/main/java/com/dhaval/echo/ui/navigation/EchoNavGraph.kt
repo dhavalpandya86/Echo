@@ -37,21 +37,11 @@ fun EchoNavGraph(
     authState: AuthState,
     modifier: Modifier = Modifier
 ) {
-    val startDestination: Any = when (authState) {
-        is AuthState.Authenticated -> HomeRoute
-        is AuthState.Loading -> WelcomeRoute
-        else -> WelcomeRoute
-    }
+    // --- DEVELOPMENT BYPASS: Always start at Home ---
+    val startDestination: Any = HomeRoute
+    // ------------------------------------------------
 
-    LaunchedEffect(authState) {
-        Log.d("EchoNavGraph", "AuthState changed: $authState")
-        if (authState is AuthState.Authenticated) {
-            Log.d("EchoNavGraph", "Navigating to Home")
-            navController.navigate(HomeRoute) {
-                popUpTo(WelcomeRoute) { inclusive = true }
-            }
-        }
-    }
+    // Auto-navigation on auth state change is disabled for bypass
 
     NavHost(
         navController = navController,
@@ -80,7 +70,7 @@ fun EchoNavGraph(
                 onGoogleSignIn = {
                     scope.launch {
                         Log.d("EchoNavGraph", "Google Sign-In clicked")
-                        googleAuthHelper.signIn()
+                        googleAuthHelper.signIn(context)
                             .onSuccess { token ->
                                 Log.d("EchoNavGraph", "ID Token received successfully")
                                 authViewModel.loginWithGoogle(token)
@@ -165,8 +155,10 @@ fun EchoNavGraph(
         composable<HomeRoute> {
             HomeScreen(
                 onNavigateToRecord = { navController.navigate(RecordRoute) },
+                onNavigateToTextEntry = { navController.navigate(TextEntryRoute) },
                 onNavigateToSearch = { navController.navigate(SearchRoute) },
                 onNavigateToCollections = { navController.navigate(CollectionsRoute) },
+                onNavigateToSettings = { navController.navigate(SettingsRoute) },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 }
@@ -237,6 +229,17 @@ fun EchoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
+                }
+            )
+        }
+
+        composable<TextEntryRoute> {
+            TextEntryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntrySaved = { entryId ->
+                    navController.navigate(EntryDetailsRoute(entryId)) {
+                        popUpTo(TextEntryRoute) { inclusive = true }
+                    }
                 }
             )
         }
