@@ -8,6 +8,7 @@ import com.dhaval.echo.domain.timeline.TimelineEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class RealIntelligenceRepository @Inject constructor(
@@ -17,7 +18,25 @@ class RealIntelligenceRepository @Inject constructor(
 ) : IntelligenceRepository {
 
     override fun processEntry(entryId: String) {
-        // ... (existing logic is fine, it just triggers the worker)
+        val request = OneTimeWorkRequestBuilder<MemoryIntelligenceWorker>()
+            .setInputData(workDataOf(MemoryIntelligenceWorker.KEY_ENTRY_ID to entryId))
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+
+        // Unique per entry: re-processing an entry should replace any in-flight
+        // run rather than stack a second one alongside it.
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            workNameFor(entryId),
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
+        android.util.Log.d(TAG, "Enqueued intelligence work for entry $entryId")
+    }
+
+    private fun workNameFor(entryId: String) = "intelligence_$entryId"
+
+    private companion object {
+        const val TAG = "IntelligenceRepo"
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)

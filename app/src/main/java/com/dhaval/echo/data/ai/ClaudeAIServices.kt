@@ -24,7 +24,8 @@ private val claudeClient = OkHttpClient.Builder()
 
 private val claudeJson = Json { ignoreUnknownKeys = true }
 private const val CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
-private const val CLAUDE_MODEL = "claude-sonnet-4-6"
+private const val CLAUDE_MODEL = "claude-opus-4-8"
+private const val CLAUDE_TAG = "ClaudeAI"
 
 private suspend fun callClaude(
     apiKey: String,
@@ -63,10 +64,20 @@ private suspend fun callClaude(
                         throw IOException("Claude API error ${response.code}: $responseBody")
                     }
                     val json = claudeJson.parseToJsonElement(responseBody).jsonObject
+
+                    // Claude may decline a request: HTTP 200 with stop_reason "refusal"
+                    // and no usable text. Surface that rather than returning a blank.
+                    val stopReason = json["stop_reason"]?.jsonPrimitive?.content
+                    if (stopReason == "refusal") {
+                        throw IOException("Claude declined this request (stop_reason: refusal)")
+                    }
+
+                    // `content` is a list of polymorphic blocks (text / thinking / tool_use).
+                    // Take the first *text* block rather than assuming index 0 is text.
                     val text = json["content"]?.jsonArray
-                        ?.firstOrNull()?.jsonObject
-                        ?.get("text")?.jsonPrimitive?.content
-                        ?: "I couldn't generate a response."
+                        ?.firstOrNull { it.jsonObject["type"]?.jsonPrimitive?.content == "text" }
+                        ?.jsonObject?.get("text")?.jsonPrimitive?.content
+                        ?: throw IOException("No text block in Claude response: $responseBody")
                     cont.resume(text)
                 } catch (e: Exception) {
                     cont.resumeWithException(e)
@@ -127,6 +138,7 @@ class ClaudeConversationService(
         val responseText = try {
             callClaude(apiKey, question, systemPrompt)
         } catch (e: Exception) {
+            android.util.Log.e(CLAUDE_TAG, "conversation ask failed", e)
             "I'm having trouble connecting right now. Please check your API key in AI Settings and try again."
         }
 
@@ -160,7 +172,10 @@ class ClaudeSummaryService(private val apiKey: String) : SummaryService {
         val result = try {
             callClaude(apiKey, prompt, maxTokens = 200)
         } catch (e: Exception) {
-            text.take(150) + if (text.length > 150) "..." else ""
+            // A truncated copy of the entry is not a summary. Log loudly and mark
+            // the fallback so a silent API failure can't pass for a real result.
+            android.util.Log.e(CLAUDE_TAG, "summarize failed — falling back to excerpt", e)
+            "[AI unavailable] " + text.take(150) + if (text.length > 150) "..." else ""
         }
         emit(result)
     }
@@ -173,6 +188,7 @@ class ClaudeTitleGenerationService(private val apiKey: String) : TitleGeneration
         val result = try {
             callClaude(apiKey, prompt, maxTokens = 30).trim().removeSurrounding("\"")
         } catch (e: Exception) {
+            android.util.Log.e(CLAUDE_TAG, "generateTitle failed — falling back to date title", e)
             "Memory ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM d"))}"
         }
         emit(result)
@@ -187,7 +203,8 @@ class ClaudeTagSuggestionService(private val apiKey: String) : TagSuggestionServ
             val response = callClaude(apiKey, prompt, maxTokens = 80)
             response.split("\n").map { it.trim() }.filter { it.isNotBlank() && it.length < 30 }.take(5)
         } catch (e: Exception) {
-            listOf("Personal", "Reflection")
+            android.util.Log.e(CLAUDE_TAG, "suggestTags failed — emitting no tags", e)
+            emptyList()
         }
         emit(result)
     }

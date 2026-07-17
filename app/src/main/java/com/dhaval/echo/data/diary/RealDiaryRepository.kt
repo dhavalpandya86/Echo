@@ -13,7 +13,8 @@ import javax.inject.Inject
 
 class RealDiaryRepository @Inject constructor(
     private val diaryEntryDao: DiaryEntryDao,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val intelligenceRepository: com.dhaval.echo.domain.intelligence.IntelligenceRepository
 ) : DiaryRepository {
     
     override fun getEntryById(id: String): Flow<DiaryEntry?> = authRepository.currentUserId.flatMapLatest { userId ->
@@ -45,11 +46,7 @@ class RealDiaryRepository @Inject constructor(
         val userId = authRepository.getCurrentUser()?.id ?: throw Exception("Not authenticated")
         val id = UUID.randomUUID().toString()
         val now = LocalDateTime.now()
-        val entryType = when {
-            imagePaths.isNotEmpty() && textContent.isNotBlank() -> EntryType.MIXED
-            imagePaths.isNotEmpty() -> EntryType.MIXED
-            else -> EntryType.TEXT
-        }
+        val entryType = if (imagePaths.isNotEmpty()) EntryType.MIXED else EntryType.TEXT
         val entry = DiaryEntry(
             id = id,
             userId = userId,
@@ -65,6 +62,11 @@ class RealDiaryRepository @Inject constructor(
             analysisStatus = IntelligenceStatus.PENDING
         )
         diaryEntryDao.insertEntry(entry)
+
+        // Written/photo memories go through the same intelligence pipeline as voice
+        // ones — the worker skips transcription when there's no audio.
+        intelligenceRepository.processEntry(id)
+
         return id
     }
 }
