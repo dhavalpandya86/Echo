@@ -26,7 +26,8 @@ object DatabaseModule {
         .addMigrations(
             EchoDatabase.MIGRATION_8_9,
             EchoDatabase.MIGRATION_9_10,
-            EchoDatabase.MIGRATION_10_11
+            EchoDatabase.MIGRATION_10_11,
+            EchoDatabase.MIGRATION_11_12
         )
         // No fallbackToDestructiveMigration: this database holds the user's
         // diary. A missing migration must fail loudly at launch, not silently

@@ -58,6 +58,16 @@ class Converters {
         return videos?.let { lenientJson.encodeToString(it) }
     }
 
+    @TypeConverter
+    fun fromFloatArray(value: String?): FloatArray? {
+        return value?.let { Json.decodeFromString(it) }
+    }
+
+    @TypeConverter
+    fun toFloatArray(array: FloatArray?): String? {
+        return array?.let { Json.encodeToString(it) }
+    }
+
     private companion object {
         /** Tolerates fields added to VideoAttachment by later versions. */
         val lenientJson = Json { ignoreUnknownKeys = true }

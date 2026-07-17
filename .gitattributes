@@ -1,0 +1,3 @@
+*.onnx filter=lfs diff=lfs merge=lfs -text
+app/src/main/assets/embeddings/tokenizer.json filter=lfs diff=lfs merge=lfs -text
+app/src/main/assets/embeddings/sentencepiece.bpe.model filter=lfs diff=lfs merge=lfs -text

@@ -35,8 +35,72 @@ data class DiaryEntry(
     // Video attachments (DB version 11).
     // Photos are bare paths; videos carry metadata (duration/size/thumbnail),
     // so they are stored as serialized records. See VideoAttachment.
-    val videos: List<VideoAttachment>? = null
-)
+    val videos: List<VideoAttachment>? = null,
+
+    // Embeddings (DB version 12)
+    val embedding: FloatArray? = null,
+    val embeddingDimensions: Int? = null,
+    val embeddingModelVersion: String? = null,
+    val embeddingCreatedAt: Long? = null
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as DiaryEntry
+        if (id != other.id) return false
+        if (userId != other.userId) return false
+        if (title != other.title) return false
+        if (audioPath != other.audioPath) return false
+        if (createdAt != other.createdAt) return false
+        if (updatedAt != other.updatedAt) return false
+        if (duration != other.duration) return false
+        if (favorite != other.favorite) return false
+        if (deleted != other.deleted) return false
+        if (language != other.language) return false
+        if (transcript != other.transcript) return false
+        if (summary != other.summary) return false
+        if (transcriptionStatus != other.transcriptionStatus) return false
+        if (analysisStatus != other.analysisStatus) return false
+        if (textContent != other.textContent) return false
+        if (imagePaths != other.imagePaths) return false
+        if (entryType != other.entryType) return false
+        if (videos != other.videos) return false
+        if (embedding != null) {
+            if (other.embedding == null) return false
+            if (!embedding.contentEquals(other.embedding)) return false
+        } else if (other.embedding != null) return false
+        if (embeddingDimensions != other.embeddingDimensions) return false
+        if (embeddingModelVersion != other.embeddingModelVersion) return false
+        if (embeddingCreatedAt != other.embeddingCreatedAt) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + userId.hashCode()
+        result = 31 * result + title.hashCode()
+        result = 31 * result + audioPath.hashCode()
+        result = 31 * result + createdAt.hashCode()
+        result = 31 * result + updatedAt.hashCode()
+        result = 31 * result + duration.hashCode()
+        result = 31 * result + favorite.hashCode()
+        result = 31 * result + deleted.hashCode()
+        result = 31 * result + (language?.hashCode() ?: 0)
+        result = 31 * result + (transcript?.hashCode() ?: 0)
+        result = 31 * result + (summary?.hashCode() ?: 0)
+        result = 31 * result + transcriptionStatus.hashCode()
+        result = 31 * result + analysisStatus.hashCode()
+        result = 31 * result + (textContent?.hashCode() ?: 0)
+        result = 31 * result + (imagePaths?.hashCode() ?: 0)
+        result = 31 * result + entryType.hashCode()
+        result = 31 * result + (videos?.hashCode() ?: 0)
+        result = 31 * result + (embedding?.contentHashCode() ?: 0)
+        result = 31 * result + (embeddingDimensions ?: 0)
+        result = 31 * result + (embeddingModelVersion?.hashCode() ?: 0)
+        result = 31 * result + (embeddingCreatedAt?.hashCode() ?: 0)
+        return result
+    }
+}
 
 object EntryType {
     const val VOICE = "VOICE"

@@ -58,6 +58,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    androidResources {
+        // The ONNX model is already int8-quantized and does not compress
+        // meaningfully; letting AAPT try costs build time and gains ~nothing.
+        noCompress += listOf("onnx")
+    }
 }
 
 dependencies {
@@ -97,6 +103,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.androidx.ui.text.google.fonts)
+    implementation(libs.onnxruntime.android)
+    // Provides the SentencepieceTokenizer custom op used by tokenizer.onnx.
+    implementation(libs.onnxruntime.extensions.android)
 
     ksp(libs.hilt.work.compiler)
     ksp(libs.room.compiler)

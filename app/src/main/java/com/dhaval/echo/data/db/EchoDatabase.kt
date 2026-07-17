@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -39,6 +39,28 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Adds the on-device embedding columns for semantic search.
+         *
+         * These columns were added to [DiaryEntry] without a version bump,
+         * which left the entity and the declared schema out of sync: Room
+         * rewrote 11.json with a new identity hash while devices still held a
+         * database built from the old one, and refused to open it. Additive and
+         * nullable, so existing memories keep their data and simply have no
+         * embedding until the worker generates one.
+         *
+         * `embedding` is TEXT because FloatArray is stored as JSON by
+         * [Converters]; it is not a native SQLite type.
+         */
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE diary_entries ADD COLUMN embedding TEXT")
+                db.execSQL("ALTER TABLE diary_entries ADD COLUMN embeddingDimensions INTEGER")
+                db.execSQL("ALTER TABLE diary_entries ADD COLUMN embeddingModelVersion TEXT")
+                db.execSQL("ALTER TABLE diary_entries ADD COLUMN embeddingCreatedAt INTEGER")
+            }
+        }
 
         /**
          * Adds video attachments. Additive and nullable: existing rows read back
