@@ -1,6 +1,7 @@
 package com.dhaval.echo.domain.timeline
 
 import com.dhaval.echo.domain.ai.IntelligenceStatus
+import com.dhaval.echo.domain.video.VideoAttachment
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
 
@@ -23,7 +24,8 @@ data class TimelineEntry(
     val isFavorite: Boolean = false,
     val textContent: String? = null,
     val imagePaths: List<String>? = null,
-    val entryType: String = "VOICE"
+    val entryType: String = "VOICE",
+    val videos: List<VideoAttachment> = emptyList()
 )
 
 /**

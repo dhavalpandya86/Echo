@@ -6,6 +6,8 @@ import com.dhaval.echo.data.db.EntryType
 import com.dhaval.echo.domain.ai.IntelligenceStatus
 import com.dhaval.echo.domain.auth.AuthRepository
 import com.dhaval.echo.domain.diary.DiaryRepository
+import com.dhaval.echo.domain.video.VideoAttachment
+import com.dhaval.echo.domain.video.VideoStorageEngine
 import kotlinx.coroutines.flow.*
 import java.time.LocalDateTime
 import java.util.UUID
@@ -14,7 +16,8 @@ import javax.inject.Inject
 class RealDiaryRepository @Inject constructor(
     private val diaryEntryDao: DiaryEntryDao,
     private val authRepository: AuthRepository,
-    private val intelligenceRepository: com.dhaval.echo.domain.intelligence.IntelligenceRepository
+    private val intelligenceRepository: com.dhaval.echo.domain.intelligence.IntelligenceRepository,
+    private val videoStorageEngine: VideoStorageEngine
 ) : DiaryRepository {
     
     override fun getEntryById(id: String): Flow<DiaryEntry?> = authRepository.currentUserId.flatMapLatest { userId ->
@@ -42,11 +45,57 @@ class RealDiaryRepository @Inject constructor(
         diaryEntryDao.softDeleteEntry(id, userId)
     }
 
-    override suspend fun createTextEntry(title: String, textContent: String, imagePaths: List<String>): String {
+    override fun getVideosForEntry(entryId: String): Flow<List<VideoAttachment>> =
+        getEntryById(entryId).map { it?.videos.orEmpty() }
+
+    override suspend fun addVideosToEntry(entryId: String, videos: List<VideoAttachment>) {
+        if (videos.isEmpty()) return
+        val userId = authRepository.getCurrentUser()?.id ?: return
+        val entry = diaryEntryDao.getEntryById(entryId) ?: return
+        if (entry.userId != userId) return
+
+        val existing = entry.videos.orEmpty()
+        val existingIds = existing.mapTo(mutableSetOf()) { it.id }
+        val merged = existing + videos.filterNot { it.id in existingIds }
+
+        diaryEntryDao.updateEntry(
+            entry.copy(videos = merged, updatedAt = LocalDateTime.now())
+        )
+    }
+
+    override suspend fun removeVideoFromEntry(entryId: String, videoId: String) {
+        val userId = authRepository.getCurrentUser()?.id ?: return
+        val entry = diaryEntryDao.getEntryById(entryId) ?: return
+        if (entry.userId != userId) return
+
+        val existing = entry.videos.orEmpty()
+        val target = existing.find { it.id == videoId } ?: return
+
+        val remaining = existing - target
+        diaryEntryDao.updateEntry(
+            entry.copy(
+                videos = remaining.ifEmpty { null },
+                updatedAt = LocalDateTime.now()
+            )
+        )
+
+        // Detach first, then reclaim the bytes. If deletion fails the row is
+        // already gone, which is the user-visible outcome they asked for.
+        videoStorageEngine.deleteVideo(target.path)
+        target.thumbnailPath?.let(videoStorageEngine::deleteThumbnail)
+    }
+
+    override suspend fun createTextEntry(
+        title: String,
+        textContent: String,
+        imagePaths: List<String>,
+        videos: List<VideoAttachment>
+    ): String {
         val userId = authRepository.getCurrentUser()?.id ?: throw Exception("Not authenticated")
         val id = UUID.randomUUID().toString()
         val now = LocalDateTime.now()
-        val entryType = if (imagePaths.isNotEmpty()) EntryType.MIXED else EntryType.TEXT
+        val hasMedia = imagePaths.isNotEmpty() || videos.isNotEmpty()
+        val entryType = if (hasMedia) EntryType.MIXED else EntryType.TEXT
         val entry = DiaryEntry(
             id = id,
             userId = userId,
@@ -57,6 +106,7 @@ class RealDiaryRepository @Inject constructor(
             duration = 0L,
             textContent = textContent,
             imagePaths = imagePaths.ifEmpty { null },
+            videos = videos.ifEmpty { null },
             entryType = entryType,
             transcriptionStatus = IntelligenceStatus.COMPLETED,
             analysisStatus = IntelligenceStatus.PENDING

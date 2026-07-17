@@ -72,7 +72,8 @@ class EntryDetailsViewModel @Inject constructor(
                     isFavorite = entry.favorite,
                     textContent = entry.textContent,
                     imagePaths = entry.imagePaths,
-                    entryType = entry.entryType
+                    entryType = entry.entryType,
+                    videos = entry.videos.orEmpty()
                 ),
                 isLoading = false,
                 formattedDate = entry.createdAt.format(dateFormatter),

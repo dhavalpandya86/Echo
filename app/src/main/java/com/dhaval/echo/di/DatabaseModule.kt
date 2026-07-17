@@ -23,8 +23,14 @@ object DatabaseModule {
             EchoDatabase::class.java,
             EchoDatabase.DATABASE_NAME
         )
-        .addMigrations(EchoDatabase.MIGRATION_8_9, EchoDatabase.MIGRATION_9_10)
-        .fallbackToDestructiveMigration() // Strategy for initial dev phase
+        .addMigrations(
+            EchoDatabase.MIGRATION_8_9,
+            EchoDatabase.MIGRATION_9_10,
+            EchoDatabase.MIGRATION_10_11
+        )
+        // No fallbackToDestructiveMigration: this database holds the user's
+        // diary. A missing migration must fail loudly at launch, not silently
+        // erase every memory they have.
         .build()
     }
 

@@ -3,6 +3,7 @@ package com.dhaval.echo.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.dhaval.echo.domain.ai.IntelligenceStatus
+import com.dhaval.echo.domain.video.VideoAttachment
 import java.time.LocalDateTime
 
 @Entity(tableName = "diary_entries")
@@ -29,7 +30,12 @@ data class DiaryEntry(
     // Rich content (DB version 10)
     val textContent: String? = null,
     val imagePaths: List<String>? = null,
-    val entryType: String = EntryType.VOICE
+    val entryType: String = EntryType.VOICE,
+
+    // Video attachments (DB version 11).
+    // Photos are bare paths; videos carry metadata (duration/size/thumbnail),
+    // so they are stored as serialized records. See VideoAttachment.
+    val videos: List<VideoAttachment>? = null
 )
 
 object EntryType {

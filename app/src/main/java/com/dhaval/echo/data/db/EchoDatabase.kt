@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -39,6 +39,17 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Adds video attachments. Additive and nullable: existing rows read back
+         * as `videos = null` (no videos), so every memory written before v11
+         * survives untouched. No table rewrite, no backfill.
+         */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE diary_entries ADD COLUMN videos TEXT")
+            }
+        }
 
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
