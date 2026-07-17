@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,11 @@ fun EchoCard(
         label = "card_scale"
     )
 
+    // Several call sites pass translucent containers (e.g. surfaceVariant at 50%).
+    // The card's shadow is drawn behind it and would show through the fill as a
+    // halo, so flatten to the opaque equivalent: same colour, no see-through.
+    val resolvedContainer = containerColor.compositeOver(MaterialTheme.colorScheme.background)
+
     val shape = RoundedCornerShape(14.dp)
     Card(
         onClick = onClick ?: {},
@@ -61,7 +67,16 @@ fun EchoCard(
             ),
         shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = containerColor
+            containerColor = resolvedContainer,
+            // Material would derive this from the container (surfaceVariant ->
+            // onSurfaceVariant = Slate), which would render card titles muted.
+            // Brand: cards are Surface with Ink text; Slate is opt-in per-Text.
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            // `enabled` is false whenever the card simply has no onClick. Such a
+            // card is static, not disabled, so it must keep the same colors —
+            // otherwise Material greys out every non-clickable card.
+            disabledContainerColor = resolvedContainer,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         interactionSource = interactionSource

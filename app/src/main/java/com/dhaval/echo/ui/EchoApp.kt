@@ -99,18 +99,19 @@ private fun EchoBottomBar(
                         modifier = Modifier.size(26.dp)
                     )
                 },
-                label = { 
+                label = {
                     Text(
                         text = destination.label,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                    ) 
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1
+                    )
                 },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                    unselectedTextColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                    unselectedIconColor = MaterialTheme.colorScheme.secondary,
+                    unselectedTextColor = MaterialTheme.colorScheme.secondary,
                     indicatorColor = Color.Transparent
                 )
             )
