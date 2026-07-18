@@ -114,6 +114,15 @@ fun EntryDetailsScreen(
                         SummarySection(it.summary)
                     }
 
+                    // What the Memory Understanding Engine concluded (MU-0)
+                    if (uiState.linkedEntities.isNotEmpty() || uiState.extractedItems.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        UnderstandingSection(
+                            entities = uiState.linkedEntities,
+                            items = uiState.extractedItems
+                        )
+                    }
+
                     // Only show playback for VOICE / MIXED entries with audio
                     if (it.entryType == EntryType.VOICE || (it.entryType == EntryType.MIXED && it.audioPath.isNotBlank())) {
                         Spacer(modifier = Modifier.height(32.dp))
@@ -237,6 +246,147 @@ private fun ImageGallerySection(imagePaths: List<String>) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The evidence board, user-facing: people, projects & topics, tasks, and mood
+ * that Echo extracted — every conclusion traceable (inferred links are marked;
+ * confidence shown for anything uncertain). No magic.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun UnderstandingSection(
+    entities: List<com.dhaval.echo.data.db.LinkedEntityView>,
+    items: List<com.dhaval.echo.data.db.ExtractedItem>
+) {
+    val people = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.PERSON }
+    val topics = entities.filter { it.type != com.dhaval.echo.data.db.EntityType.PERSON }
+    val tasks = items.filter {
+        it.kind == com.dhaval.echo.data.db.ItemKind.TASK ||
+            it.kind == com.dhaval.echo.data.db.ItemKind.REMINDER
+    }
+    val moods = items.filter { it.kind == com.dhaval.echo.data.db.ItemKind.MOOD }
+
+    Column {
+        if (people.isNotEmpty()) {
+            UnderstandingGroup("People") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    people.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (topics.isNotEmpty()) {
+            UnderstandingGroup("Topics & Projects") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    topics.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (tasks.isNotEmpty()) {
+            UnderstandingGroup("Action Items") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tasks.forEach { task ->
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = task.value,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                task.dueAtMillis?.let { due ->
+                                    Text(
+                                        text = java.time.Instant.ofEpochMilli(due)
+                                            .atZone(java.time.ZoneId.systemDefault())
+                                            .format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d 'at' HH:mm")),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (moods.isNotEmpty()) {
+            UnderstandingGroup("Mood") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    moods.forEach { mood ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = mood.value,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnderstandingGroup(title: String, content: @Composable () -> Unit) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.height(10.dp))
+        content()
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun EntityChip(entity: com.dhaval.echo.data.db.LinkedEntityView) {
+    Surface(
+        color = if (entity.inferred) MaterialTheme.colorScheme.surfaceVariant
+        else MaterialTheme.colorScheme.secondaryContainer,
+        shape = CircleShape
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(
+                text = entity.name,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            // Inferred = derived by graph traversal, not stated by the user.
+            // It must look different, and it must show its confidence.
+            if (entity.inferred) {
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "~${(entity.confidence * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

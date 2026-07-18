@@ -27,7 +27,10 @@ data class EntryDetailsUiState(
     val collections: List<EchoCollection> = emptyList(),
     val relatedEntries: List<TimelineEntry> = emptyList(),
     val segments: List<com.dhaval.echo.data.db.TranscriptionSegmentEntity> = emptyList(),
-    val classification: com.dhaval.echo.data.db.MemoryClassificationEntity? = null
+    val classification: com.dhaval.echo.data.db.MemoryClassificationEntity? = null,
+    // Memory Understanding Engine (MU-0): what Echo concluded about this memory
+    val linkedEntities: List<com.dhaval.echo.data.db.LinkedEntityView> = emptyList(),
+    val extractedItems: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList()
 )
 
 @HiltViewModel
@@ -36,6 +39,7 @@ class EntryDetailsViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val collectionRepository: CollectionRepository,
     private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao,
+    private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao,
     private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -51,8 +55,13 @@ class EntryDetailsViewModel @Inject constructor(
             diaryRepository.getEntryById(entryId),
             tagRepository.getTagsForEntry(entryId),
             collectionRepository.getCollectionsForEntry(entryId),
-            intelligenceDao.getRelatedEntries(entryId, userId)
-        ) { entry, tags, collections, related ->
+            intelligenceDao.getRelatedEntries(entryId, userId),
+            // MUE graph output: entity links + evidence-board items together
+            combine(
+                understandingDao.getLinkedEntities(entryId),
+                understandingDao.getItemsForMemory(entryId)
+            ) { links, items -> links to items }
+        ) { entry, tags, collections, related, understanding ->
         if (entry == null) {
             EntryDetailsUiState(isLoading = false, error = "Entry not found")
         } else {
@@ -79,6 +88,8 @@ class EntryDetailsViewModel @Inject constructor(
                 formattedDate = entry.createdAt.format(dateFormatter),
                 tags = tags,
                 collections = collections,
+                linkedEntities = understanding.first,
+                extractedItems = understanding.second,
                 relatedEntries = related.map {
                     TimelineEntry(
                         id = it.id,

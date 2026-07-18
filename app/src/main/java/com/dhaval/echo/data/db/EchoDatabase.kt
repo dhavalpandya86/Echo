@@ -23,9 +23,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryClassificationEntity::class,
         TimelineInsightEntity::class,
         ConversationEntity::class,
-        MessageEntity::class
+        MessageEntity::class,
+        EntityNode::class,
+        MemoryEntityLink::class,
+        ExtractedItem::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -36,9 +39,56 @@ abstract class EchoDatabase : RoomDatabase() {
     abstract fun intelligenceDao(): IntelligenceDao
     abstract fun userDao(): UserDao
     abstract fun conversationDao(): ConversationDao
+    abstract fun understandingDao(): UnderstandingDao
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Memory Understanding Engine foundation (MU-0): the Entity Graph
+         * (`entities` — long-lived people/projects/places/topics), the Memory
+         * Graph (`memory_entity_links` — typed event→entity edges with
+         * confidence + evidence), and the evidence board (`extracted_items` —
+         * tasks/reminders/mood/decisions). Purely additive; existing memories
+         * simply have no graph presence until (re)processed.
+         */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `entities` (
+                        `id` TEXT NOT NULL, `userId` TEXT NOT NULL, `type` TEXT NOT NULL,
+                        `name` TEXT NOT NULL, `normalizedName` TEXT NOT NULL,
+                        `aliases` TEXT NOT NULL, `firstSeenAt` TEXT NOT NULL,
+                        `lastSeenAt` TEXT NOT NULL, `memoryCount` INTEGER NOT NULL,
+                        `embedding` TEXT, PRIMARY KEY(`id`))"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_entities_userId_type_normalizedName` ON `entities` (`userId`, `type`, `normalizedName`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_entities_userId` ON `entities` (`userId`)")
+
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `memory_entity_links` (
+                        `id` TEXT NOT NULL, `memoryId` TEXT NOT NULL, `entityId` TEXT NOT NULL,
+                        `relation` TEXT NOT NULL, `confidence` REAL NOT NULL,
+                        `evidence` TEXT, `inferred` INTEGER NOT NULL, `createdAt` TEXT NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`memoryId`) REFERENCES `diary_entries`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`entityId`) REFERENCES `entities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_entity_links_memoryId` ON `memory_entity_links` (`memoryId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_entity_links_entityId` ON `memory_entity_links` (`entityId`)")
+
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `extracted_items` (
+                        `id` TEXT NOT NULL, `memoryId` TEXT NOT NULL, `userId` TEXT NOT NULL,
+                        `kind` TEXT NOT NULL, `value` TEXT NOT NULL, `dueAtMillis` INTEGER,
+                        `confidence` REAL NOT NULL, `evidence` TEXT, `status` TEXT NOT NULL,
+                        `createdAt` TEXT NOT NULL, PRIMARY KEY(`id`),
+                        FOREIGN KEY(`memoryId`) REFERENCES `diary_entries`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extracted_items_memoryId` ON `extracted_items` (`memoryId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_extracted_items_userId` ON `extracted_items` (`userId`)")
+            }
+        }
 
         /**
          * Adds the on-device embedding columns for semantic search.

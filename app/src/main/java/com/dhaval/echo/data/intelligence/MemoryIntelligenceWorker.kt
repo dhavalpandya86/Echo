@@ -10,6 +10,9 @@ import com.dhaval.echo.data.db.*
 import com.dhaval.echo.domain.ai.AIManager
 import com.dhaval.echo.domain.ai.IntelligenceStatus
 import com.dhaval.echo.domain.tags.TagRepository
+import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
+import com.dhaval.echo.domain.understanding.NormalizedContent
+import com.dhaval.echo.domain.understanding.SourceKind
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.last
@@ -30,7 +33,8 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     private val diaryEntryDao: DiaryEntryDao,
     private val intelligenceDao: IntelligenceDao,
     private val aiManager: AIManager,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    private val understandingService: MemoryUnderstandingService
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -55,7 +59,19 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
             }
 
             runAnalysis(entry, sourceText)
+
+            // Memory Understanding Engine (Stages 3–5): evidence extraction →
+            // entity graph resolution. Failures log loudly and degrade — a
+            // broken analyzer must not cost the user their summary/transcript.
+            runCatching {
+                understandingService.understand(normalizedContentFor(entry, sourceText))
+            }.onFailure { Log.e(TAG, "Understanding stage failed for $entryId", it) }
+
             Log.d(TAG, "Intelligence pipeline completed for $entryId")
+
+            // Enqueue embedding generation
+            EmbeddingWorker.enqueue(applicationContext, entryId)
+
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Intelligence pipeline failed for $entryId", e)
@@ -191,6 +207,23 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
         }.onFailure { Log.w(TAG, "Timeline analysis failed for $entryId", it) }
 
         intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.COMPLETED)
+    }
+
+    /** Stage-2 canonical form: after this, source kind no longer matters. */
+    private fun normalizedContentFor(entry: DiaryEntry, sourceText: String): NormalizedContent {
+        val kinds = buildSet {
+            if (entry.audioPath.isNotBlank()) add(SourceKind.VOICE)
+            if (!entry.textContent.isNullOrBlank()) add(SourceKind.TEXT)
+            if (!entry.imagePaths.isNullOrEmpty()) add(SourceKind.PHOTO)
+            if (!entry.videos.isNullOrEmpty()) add(SourceKind.VIDEO)
+        }
+        return NormalizedContent(
+            memoryId = entry.id,
+            userId = entry.userId,
+            text = sourceText,
+            sourceKinds = kinds.ifEmpty { setOf(SourceKind.TEXT) },
+            capturedAt = entry.createdAt
+        )
     }
 
     /**

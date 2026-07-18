@@ -27,7 +27,8 @@ object DatabaseModule {
             EchoDatabase.MIGRATION_8_9,
             EchoDatabase.MIGRATION_9_10,
             EchoDatabase.MIGRATION_10_11,
-            EchoDatabase.MIGRATION_11_12
+            EchoDatabase.MIGRATION_11_12,
+            EchoDatabase.MIGRATION_12_13
         )
         // No fallbackToDestructiveMigration: this database holds the user's
         // diary. A missing migration must fail loudly at launch, not silently
@@ -53,5 +54,10 @@ object DatabaseModule {
     @Provides
     fun provideIntelligenceDao(database: EchoDatabase): com.dhaval.echo.data.db.IntelligenceDao {
         return database.intelligenceDao()
+    }
+
+    @Provides
+    fun provideUnderstandingDao(database: EchoDatabase): com.dhaval.echo.data.db.UnderstandingDao {
+        return database.understandingDao()
     }
 }
