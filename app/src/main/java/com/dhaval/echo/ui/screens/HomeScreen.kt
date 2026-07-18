@@ -34,12 +34,18 @@ data class HomeUiState(
     val recentRecordings: List<TimelineEntry> = emptyList(),
     val stats: HomeStats = HomeStats(),
     val insightOfDay: com.dhaval.echo.domain.ai.TimelineInsight? = null,
-    // Today briefing (Phase 1)
+    // Today briefing (Phase 1) — the temporal focus shifts through the day.
+    val leadKind: DayLead = DayLead.NONE,
     val yesterdayRecap: String? = null,
-    val commitments: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList(),
+    val todayProgress: String? = null,
+    val waitingCommitments: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList(),
+    val tomorrowCommitments: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList(),
     val continueMemory: TimelineEntry? = null,
     val revisitMemory: TimelineEntry? = null
 )
+
+/** Which day the Today page leads with, following the time of day. */
+enum class DayLead { YESTERDAY, TODAY, TOMORROW, NONE }
 
 data class HomeStats(
     val todayCount: Int = 0,
@@ -220,17 +226,47 @@ private fun HomeScreenContent(
     ) {
         item { HeaderSection(state.displayName) }
 
-        // Yesterday — a gentle look back.
-        state.yesterdayRecap?.let { recap ->
-            item { BriefingSection(label = "Yesterday") { Text(recap, style = MaterialTheme.typography.bodyLarge) } }
+        // Reflection — the page's focus follows the day. Morning looks back at
+        // yesterday; the afternoon is about today's progress; by night the lead
+        // shifts forward to tomorrow's priorities. The other day steps back to a
+        // quiet secondary line.
+        when (state.leadKind) {
+            DayLead.YESTERDAY -> state.yesterdayRecap?.let {
+                item { BriefingSection("Yesterday") { Text(it, style = MaterialTheme.typography.bodyLarge) } }
+            }
+            DayLead.TODAY -> {
+                state.todayProgress?.let {
+                    item { BriefingSection("Today so far") { Text(it, style = MaterialTheme.typography.bodyLarge) } }
+                }
+                state.yesterdayRecap?.let { item { SteppedBackRecap("Yesterday", it) } }
+            }
+            DayLead.TOMORROW -> {
+                item {
+                    BriefingSection("Tomorrow") {
+                        if (state.tomorrowCommitments.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                state.tomorrowCommitments.forEach { c -> CommitmentRow(c, onClick = onOpenCommitments) }
+                            }
+                        } else {
+                            Text(
+                                "Nothing scheduled yet — tomorrow is yours.",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+                state.todayProgress?.let { item { SteppedBackRecap("Today", it) } }
+            }
+            DayLead.NONE -> {}
         }
 
-        // Waiting for you — today's commitments.
-        if (state.commitments.isNotEmpty()) {
+        // Waiting for you — what's still open today (overdue / due today).
+        // Hidden at night, where Tomorrow's priorities are the forward focus.
+        if (state.waitingCommitments.isNotEmpty() && state.leadKind != DayLead.TOMORROW) {
             item {
                 BriefingSection(label = "Waiting for you") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        state.commitments.forEach { c -> CommitmentRow(c, onClick = onOpenCommitments) }
+                        state.waitingCommitments.forEach { c -> CommitmentRow(c, onClick = onOpenCommitments) }
                     }
                 }
             }
@@ -299,6 +335,23 @@ private fun HomeScreenContent(
                 )
             }
         }
+    }
+}
+
+/** A recap that has stepped back — smaller and muted, for the day's earlier chapter. */
+@Composable
+private fun SteppedBackRecap(label: String, text: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+        )
     }
 }
 
@@ -376,7 +429,7 @@ private fun HeaderSection(displayName: String?) {
     val dateText = today.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault()))
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greetingBase = when (hour) {
-        in 0..11 -> "Good Morning"
+        in 5..11 -> "Good Morning"
         in 12..16 -> "Good Afternoon"
         else -> "Good Evening"
     }

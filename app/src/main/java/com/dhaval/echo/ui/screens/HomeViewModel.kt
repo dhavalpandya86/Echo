@@ -48,13 +48,38 @@ class HomeViewModel @Inject constructor(
             val streak = calculateStreak(entries.map { it.timestamp.toLocalDate() }.distinct().sortedDescending())
 
             // ── Briefing (Phase 1: Today) ──────────────────────────────
-            // Yesterday's recap: an honest count, warmly phrased.
+            // The look-back is relative to the time of day: in the morning we
+            // reflect on yesterday; once the day is underway, today's progress
+            // leads and yesterday steps back (see the screen's reflection block).
             val yesterday = today.minusDays(1)
             val yEntries = sortedEntries.filter { it.timestamp.toLocalDate() == yesterday }
             val yesterdayRecap = if (yEntries.isNotEmpty()) {
                 val n = yEntries.size
                 "Yesterday you captured $n ${if (n == 1) "memory" else "memories"}."
             } else null
+            val todayProgress = if (todayCount > 0) {
+                "Today you've captured $todayCount ${if (todayCount == 1) "memory" else "memories"}."
+            } else null
+
+            // Commitments split by when they're due: what's still waiting today
+            // (overdue / due today / undated) vs. tomorrow's priorities.
+            fun dueDate(i: com.dhaval.echo.data.db.ExtractedItem): LocalDate? =
+                i.dueAtMillis?.let {
+                    java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                }
+            val waiting = commitments.filter { val d = dueDate(it); d == null || !d.isAfter(today) }.take(3)
+            val tomorrowCommitments = commitments.filter { dueDate(it) == today.plusDays(1) }.take(3)
+
+            // The page's temporal focus follows the day: morning looks back at
+            // yesterday, the afternoon is about today's progress, and by night
+            // the lead shifts forward to tomorrow's priorities.
+            val leadKind = when (java.time.LocalTime.now().hour) {
+                in 5..11 -> if (yesterdayRecap != null) DayLead.YESTERDAY
+                            else if (todayProgress != null) DayLead.TODAY else DayLead.NONE
+                in 12..17 -> if (todayProgress != null) DayLead.TODAY
+                             else if (yesterdayRecap != null) DayLead.YESTERDAY else DayLead.NONE
+                else -> DayLead.TOMORROW   // evening / night → look forward
+            }
 
             // Continue: the thing you were last doing.
             val continueMemory = recent.firstOrNull()
@@ -83,7 +108,10 @@ class HomeViewModel @Inject constructor(
                 displayName = userProfile?.displayName,
                 recentRecordings = recent,
                 yesterdayRecap = yesterdayRecap,
-                commitments = commitments.take(3),
+                todayProgress = todayProgress,
+                leadKind = leadKind,
+                waitingCommitments = waiting,
+                tomorrowCommitments = tomorrowCommitments,
                 continueMemory = continueMemory,
                 revisitMemory = revisitMemory,
                 stats = HomeStats(
