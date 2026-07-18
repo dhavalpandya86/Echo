@@ -119,14 +119,56 @@ class LocalEntityResolver @Inject constructor(
                 )
             }
 
-        dao.replaceMemoryUnderstanding(content.memoryId, links, items)
-        touchedEntityIds.forEach { dao.refreshEntityStats(it, now) }
+        // Stage 6: memory expansion. Entities the user didn't name here but which
+        // strongly co-occur with the ones they did are added as *inferred* links —
+        // marked, low-confidence, and never affecting identity or memoryCount.
+        val inferredLinks = expandByCoOccurrence(content, touchedEntityIds, now)
+        val allLinks = links + inferredLinks
+
+        dao.replaceMemoryUnderstanding(content.memoryId, allLinks, items)
+        (touchedEntityIds + inferredLinks.map { it.entityId }).forEach {
+            dao.refreshEntityStats(it, now)
+        }
 
         Log.i(
             TAG,
-            "Resolved memory ${content.memoryId}: ${links.size} entity links " +
-                "(${touchedEntityIds.size} entities), ${items.size} items"
+            "Resolved memory ${content.memoryId}: ${links.size} stated + " +
+                "${inferredLinks.size} inferred links (${touchedEntityIds.size} entities), ${items.size} items"
         )
+    }
+
+    /**
+     * Stage-6 traversal: for each stated entity, pull entities that co-occur with
+     * it in ≥ [MIN_SHARED] past memories and link them to this memory as inferred.
+     * Conservative on purpose — capped count and confidence — so enrichment never
+     * drowns out what the user actually said.
+     */
+    private suspend fun expandByCoOccurrence(
+        content: NormalizedContent,
+        statedEntityIds: Set<String>,
+        now: LocalDateTime
+    ): List<MemoryEntityLink> {
+        if (statedEntityIds.isEmpty()) return emptyList()
+        val inferred = mutableListOf<MemoryEntityLink>()
+        val seen = statedEntityIds.toMutableSet()
+        outer@ for (eid in statedEntityIds) {
+            for (co in dao.coOccurringEntities(eid, content.memoryId, MIN_SHARED)) {
+                if (co.entityId in seen) continue
+                seen += co.entityId
+                inferred += MemoryEntityLink(
+                    id = UUID.randomUUID().toString(),
+                    memoryId = content.memoryId,
+                    entityId = co.entityId,
+                    relation = LinkRelation.DISCUSSES,
+                    confidence = (0.3f + 0.05f * co.shared).coerceAtMost(0.5f),
+                    evidence = "Inferred — co-occurs with a mentioned entity across ${co.shared} memories",
+                    inferred = true,
+                    createdAt = now
+                )
+                if (inferred.size >= MAX_INFERRED) break@outer
+            }
+        }
+        return inferred
     }
 
     private suspend fun findExisting(userId: String, type: String, name: String): EntityNode? {
@@ -142,5 +184,7 @@ class LocalEntityResolver @Inject constructor(
 
     private companion object {
         const val TAG = "EntityResolver"
+        const val MIN_SHARED = 2      // co-occur in ≥2 memories before inferring
+        const val MAX_INFERRED = 3    // never flood a memory with guesses
     }
 }

@@ -19,6 +19,12 @@ data class LinkedEntityView(
     val inferred: Boolean
 )
 
+/** An entity that co-occurs with a query entity, and in how many memories. */
+data class CoOccurrence(
+    val entityId: String,
+    val shared: Int
+)
+
 @Dao
 interface UnderstandingDao {
 
@@ -46,11 +52,37 @@ interface UnderstandingDao {
 
     @Query(
         """UPDATE entities SET
-             memoryCount = (SELECT COUNT(DISTINCT memoryId) FROM memory_entity_links WHERE entityId = :entityId),
+             memoryCount = (SELECT COUNT(DISTINCT memoryId) FROM memory_entity_links
+                            WHERE entityId = :entityId AND inferred = 0),
              lastSeenAt = :seenAt
            WHERE id = :entityId"""
     )
     suspend fun refreshEntityStats(entityId: String, seenAt: LocalDateTime)
+
+    /**
+     * Stage-6 expansion: entities that co-occur with [entityId] across the
+     * user's *stated* links, excluding one memory (the one being processed, so
+     * it can't reinforce its own inferences) and excluding inferred links (so
+     * inferences never beget inferences). Ordered by how many memories share
+     * both entities.
+     */
+    @Query(
+        """SELECT l2.entityId AS entityId, COUNT(DISTINCT l1.memoryId) AS shared
+           FROM memory_entity_links l1
+           JOIN memory_entity_links l2
+             ON l1.memoryId = l2.memoryId AND l2.entityId <> :entityId
+           WHERE l1.entityId = :entityId
+             AND l1.memoryId <> :excludeMemoryId
+             AND l1.inferred = 0 AND l2.inferred = 0
+           GROUP BY l2.entityId
+           HAVING shared >= :minShared
+           ORDER BY shared DESC"""
+    )
+    suspend fun coOccurringEntities(
+        entityId: String,
+        excludeMemoryId: String,
+        minShared: Int
+    ): List<CoOccurrence>
 
     // ── Memory Graph (links) ─────────────────────────────────────────
 
