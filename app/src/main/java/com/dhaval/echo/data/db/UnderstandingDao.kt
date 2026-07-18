@@ -50,6 +50,19 @@ interface UnderstandingDao {
     @Query("SELECT * FROM entities WHERE id = :id")
     suspend fun getEntityById(id: String): EntityNode?
 
+    @Query("SELECT * FROM entities WHERE id = :id")
+    fun observeEntity(id: String): Flow<EntityNode?>
+
+    /** The memories linked to an entity, newest first — for its detail page. */
+    @Query(
+        """SELECT d.* FROM diary_entries d
+           JOIN memory_entity_links l ON l.memoryId = d.id
+           WHERE l.entityId = :entityId
+           GROUP BY d.id
+           ORDER BY d.createdAt DESC"""
+    )
+    fun getMemoriesForEntity(entityId: String): Flow<List<DiaryEntry>>
+
     @Query(
         """UPDATE entities SET
              memoryCount = (SELECT COUNT(DISTINCT memoryId) FROM memory_entity_links

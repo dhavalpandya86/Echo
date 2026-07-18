@@ -69,6 +69,16 @@ data class CollectionDetailsRoute(val collectionId: String)
 @Serializable
 object TextEntryRoute
 
+// Memory Understanding Engine surfaces (MU-5)
+@Serializable
+object TasksRoute
+
+@Serializable
+object EntitiesRoute
+
+@Serializable
+data class EntityDetailsRoute(val entityId: String)
+
 /**
  * Top-level destinations represented in the Bottom Navigation Bar.
  */

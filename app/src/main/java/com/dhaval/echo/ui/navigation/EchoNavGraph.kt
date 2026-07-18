@@ -159,9 +159,29 @@ fun EchoNavGraph(
                 onNavigateToSearch = { navController.navigate(SearchRoute) },
                 onNavigateToCollections = { navController.navigate(CollectionsRoute) },
                 onNavigateToSettings = { navController.navigate(SettingsRoute) },
+                onNavigateToTasks = { navController.navigate(TasksRoute) },
+                onNavigateToEntities = { navController.navigate(EntitiesRoute) },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 }
+            )
+        }
+
+        composable<TasksRoute> {
+            TasksScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable<EntitiesRoute> {
+            EntitiesScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) }
+            )
+        }
+
+        composable<EntityDetailsRoute> {
+            EntityDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntryClick = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) }
             )
         }
 

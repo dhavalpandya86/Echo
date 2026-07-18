@@ -50,6 +50,8 @@ fun HomeScreen(
     onNavigateToCollections: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToEntry: (String) -> Unit,
+    onNavigateToTasks: () -> Unit = {},
+    onNavigateToEntities: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -62,6 +64,12 @@ fun HomeScreen(
         topBar = {
             EchoTopBar(
                 actions = {
+                    IconButton(onClick = onNavigateToTasks) {
+                        Icon(Icons.Default.TaskAlt, contentDescription = "Tasks")
+                    }
+                    IconButton(onClick = onNavigateToEntities) {
+                        Icon(Icons.Default.Hub, contentDescription = "People & Topics")
+                    }
                     IconButton(onClick = onNavigateToSearch) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
