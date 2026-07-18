@@ -12,6 +12,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,7 +26,9 @@ class RealAIManager @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val memoryContextBuilder: Lazy<MemoryContextBuilder>,
     private val authRepository: AuthRepository,
-    private val aiPreferences: AiPreferences
+    private val aiPreferences: AiPreferences,
+    private val sttEngine: com.dhaval.echo.domain.transcription.SpeechToTextEngine,
+    private val embeddingEngine: com.dhaval.echo.domain.embeddings.EmbeddingEngine
 ) : AIManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -39,11 +43,25 @@ class RealAIManager @Inject constructor(
         DisabledProvider()
     )
 
+    private val sttProviders = listOf(
+        SimpleSTTProvider("android_offline", "Android Offline", true, true, "Ready"),
+        SimpleSTTProvider("whisper_cpp", "Whisper.cpp", false, true, "Coming Soon"),
+        SimpleSTTProvider("mlkit", "Google ML Kit", false, true, "Coming Soon"),
+        SimpleSTTProvider("gemini", "Gemini", false, false, "Coming Soon"),
+        SimpleSTTProvider("openai", "OpenAI", false, false, "Coming Soon")
+    )
+
     private val _availableProviders = MutableStateFlow(providers)
     override val availableProviders: StateFlow<List<AIProvider>> = _availableProviders.asStateFlow()
 
     private val _currentProvider = MutableStateFlow<AIProvider>(providers.first())
     override val currentProvider: StateFlow<AIProvider> = _currentProvider.asStateFlow()
+
+    private val _availableSttProviders = MutableStateFlow(sttProviders)
+    override val availableSttProviders: StateFlow<List<STTProvider>> = _availableSttProviders.asStateFlow()
+
+    private val _currentSttProvider = MutableStateFlow<STTProvider>(sttProviders.first())
+    override val currentSttProvider: StateFlow<STTProvider> = _currentSttProvider.asStateFlow()
 
     private var claudeApiKey: String = ""
     private var openAiApiKey: String = ""
@@ -53,6 +71,11 @@ class RealAIManager @Inject constructor(
         scope.launch {
             aiPreferences.selectedProviderId.collect { id ->
                 providers.find { it.id == id }?.let { _currentProvider.value = it }
+            }
+        }
+        scope.launch {
+            aiPreferences.selectedSttProviderId.collect { id ->
+                sttProviders.find { it.id == id }?.let { _currentSttProvider.value = it }
             }
         }
         scope.launch {
@@ -75,6 +98,15 @@ class RealAIManager @Inject constructor(
         }
     }
 
+    override fun switchSttProvider(providerId: String) {
+        sttProviders.find { it.id == providerId }?.let {
+            if (it.isEnabled) {
+                _currentSttProvider.value = it
+                scope.launch { aiPreferences.setSelectedSttProvider(providerId) }
+            }
+        }
+    }
+
     override fun isCapabilitySupported(capability: AICapability): Boolean {
         val p = _currentProvider.value
         return when (capability) {
@@ -92,10 +124,17 @@ class RealAIManager @Inject constructor(
     override fun getLanguageDetectionService(): LanguageDetectionService = FakeLanguageDetectionService()
 
     override fun getTranscriptionService(): TranscriptionService =
-        when (_currentProvider.value.id) {
-            "local" -> MLKitTranscriptionService(context)
-            else -> FakeTranscriptionService()
+        object : TranscriptionService {
+            override fun transcribe(audioPath: String): Flow<TranscriptionResult> = flow {
+                val result = sttEngine.transcribe(audioPath)
+                emit(TranscriptionResult(
+                    text = result.transcript,
+                    isFinal = true
+                ))
+            }
         }
+
+    override fun getSpeechToTextEngine(): com.dhaval.echo.domain.transcription.SpeechToTextEngine = sttEngine
 
     override fun getSummaryService(): SummaryService =
         when (_currentProvider.value.id) {
@@ -116,7 +155,12 @@ class RealAIManager @Inject constructor(
             else -> FakeTagSuggestionService()
         }
 
-    override fun getEmbeddingService(): EmbeddingService = FakeEmbeddingService()
+    override fun getEmbeddingService(): EmbeddingService = object : EmbeddingService {
+        override fun generateEmbedding(text: String): Flow<List<Float>> = flow {
+            val result = embeddingEngine.generateEmbedding(text)
+            emit(result.vector.toList())
+        }
+    }
 
     override fun getMemoryRelationshipService(): MemoryRelationshipService = FakeMemoryRelationshipService()
 
@@ -149,3 +193,11 @@ class RealAIManager @Inject constructor(
             else -> FakeConversationService()
         }
 }
+
+private data class SimpleSTTProvider(
+    override val id: String,
+    override val displayName: String,
+    override val isEnabled: Boolean,
+    override val isOffline: Boolean,
+    override val statusLabel: String
+) : STTProvider

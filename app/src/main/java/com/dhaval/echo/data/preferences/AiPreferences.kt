@@ -19,18 +19,24 @@ class AiPreferences @Inject constructor(
 ) {
     companion object {
         val SELECTED_PROVIDER_ID = stringPreferencesKey("selected_provider_id")
+        val SELECTED_STT_PROVIDER_ID = stringPreferencesKey("selected_stt_provider_id")
         val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
     }
 
     val selectedProviderId: Flow<String> = dataStore.data.map { it[SELECTED_PROVIDER_ID] ?: "local" }
+    val selectedSttProviderId: Flow<String> = dataStore.data.map { it[SELECTED_STT_PROVIDER_ID] ?: "android_offline" }
     val claudeApiKey: Flow<String> = dataStore.data.map { it[CLAUDE_API_KEY] ?: "" }
     val openAiApiKey: Flow<String> = dataStore.data.map { it[OPENAI_API_KEY] ?: "" }
     val geminiApiKey: Flow<String> = dataStore.data.map { it[GEMINI_API_KEY] ?: "" }
 
     suspend fun setSelectedProvider(providerId: String) {
         dataStore.edit { it[SELECTED_PROVIDER_ID] = providerId }
+    }
+
+    suspend fun setSelectedSttProvider(providerId: String) {
+        dataStore.edit { it[SELECTED_STT_PROVIDER_ID] = providerId }
     }
 
     suspend fun setClaudeApiKey(key: String) {

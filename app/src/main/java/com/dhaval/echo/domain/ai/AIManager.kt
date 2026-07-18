@@ -8,13 +8,18 @@ import kotlinx.coroutines.flow.StateFlow
 interface AIManager {
     val currentProvider: StateFlow<AIProvider>
     val availableProviders: StateFlow<List<AIProvider>>
-    
+
+    val currentSttProvider: StateFlow<STTProvider>
+    val availableSttProviders: StateFlow<List<STTProvider>>
+
     fun switchProvider(providerId: String)
+    fun switchSttProvider(providerId: String)
     fun isCapabilitySupported(capability: AICapability): Boolean
     
     // Service Accessors
     fun getLanguageDetectionService(): LanguageDetectionService
     fun getTranscriptionService(): TranscriptionService
+    fun getSpeechToTextEngine(): com.dhaval.echo.domain.transcription.SpeechToTextEngine
     fun getSummaryService(): SummaryService
     fun getTitleGenerationService(): TitleGenerationService
     fun getTagSuggestionService(): TagSuggestionService

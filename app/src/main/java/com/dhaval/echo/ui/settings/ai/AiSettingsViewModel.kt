@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dhaval.echo.data.preferences.AiPreferences
 import com.dhaval.echo.domain.ai.AIManager
 import com.dhaval.echo.domain.ai.AIProvider
+import com.dhaval.echo.domain.ai.STTProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,6 +14,8 @@ import javax.inject.Inject
 data class AiSettingsUiState(
     val currentProvider: AIProvider? = null,
     val availableProviders: List<AIProvider> = emptyList(),
+    val currentSttProvider: STTProvider? = null,
+    val availableSttProviders: List<STTProvider> = emptyList(),
     val apiKeyIsSet: Boolean = false,
     val isLoading: Boolean = false,
     val saveSuccess: Boolean = false
@@ -26,14 +29,18 @@ class AiSettingsViewModel @Inject constructor(
 
     val uiState: StateFlow<AiSettingsUiState> = combine(
         aiManager.currentProvider,
-        aiManager.availableProviders
-    ) { current, available ->
-        current to available
-    }.flatMapLatest { (current, available) ->
-        aiPreferences.getApiKeyForProvider(current?.id ?: "").map { key ->
+        aiManager.availableProviders,
+        aiManager.currentSttProvider,
+        aiManager.availableSttProviders
+    ) { current, available, currentStt, availableStt ->
+        Data(current, available, currentStt, availableStt)
+    }.flatMapLatest { data ->
+        aiPreferences.getApiKeyForProvider(data.current?.id ?: "").map { key ->
             AiSettingsUiState(
-                currentProvider = current,
-                availableProviders = available,
+                currentProvider = data.current,
+                availableProviders = data.available,
+                currentSttProvider = data.currentStt,
+                availableSttProviders = data.availableStt,
                 apiKeyIsSet = key.isNotBlank()
             )
         }
@@ -43,8 +50,19 @@ class AiSettingsViewModel @Inject constructor(
         initialValue = AiSettingsUiState(isLoading = true)
     )
 
+    private data class Data(
+        val current: AIProvider?,
+        val available: List<AIProvider>,
+        val currentStt: STTProvider?,
+        val availableStt: List<STTProvider>
+    )
+
     fun onProviderSelected(providerId: String) {
         aiManager.switchProvider(providerId)
+    }
+
+    fun onSttProviderSelected(providerId: String) {
+        aiManager.switchSttProvider(providerId)
     }
 
     fun saveApiKey(key: String) {

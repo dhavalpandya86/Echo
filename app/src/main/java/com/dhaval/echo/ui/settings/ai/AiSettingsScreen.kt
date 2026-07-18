@@ -18,9 +18,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.dhaval.echo.R
 import com.dhaval.echo.domain.ai.AIProvider
 import com.dhaval.echo.domain.ai.AIProviderStatus
+import com.dhaval.echo.domain.ai.STTProvider
 import com.dhaval.echo.ui.components.EchoTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,6 +76,30 @@ fun AiSettingsScreen(
                     provider = provider,
                     isSelected = provider.id == uiState.currentProvider?.id,
                     onSelect = { viewModel.onProviderSelected(provider.id) }
+                )
+            }
+
+            item {
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.stt_engine_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.stt_engine_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            items(uiState.availableSttProviders) { provider ->
+                SttProviderCard(
+                    provider = provider,
+                    isSelected = provider.id == uiState.currentSttProvider?.id,
+                    onSelect = { viewModel.onSttProviderSelected(provider.id) }
                 )
             }
 
@@ -183,6 +210,49 @@ private fun ProviderCard(
                     text = statusLabel(status),
                     style = MaterialTheme.typography.bodySmall,
                     color = statusColor(status)
+                )
+            }
+            if (isSelected) {
+                Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SttProviderCard(
+    provider: STTProvider,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    Card(
+        onClick = onSelect,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = provider.isEnabled,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                MaterialTheme.colorScheme.primaryContainer
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = provider.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (provider.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+                Text(
+                    text = provider.statusLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (provider.isEnabled && isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (isSelected) {
