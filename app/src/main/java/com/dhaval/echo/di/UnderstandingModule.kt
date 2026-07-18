@@ -8,11 +8,14 @@ import com.dhaval.echo.data.understanding.LocalProjectAnalyzer
 import com.dhaval.echo.data.understanding.LocalReminderAnalyzer
 import com.dhaval.echo.data.understanding.LocalTaskAnalyzer
 import com.dhaval.echo.data.understanding.RealMemoryUnderstandingService
+import com.dhaval.echo.domain.ai.AIManager
 import com.dhaval.echo.domain.understanding.EntityResolver
 import com.dhaval.echo.domain.understanding.MemoryAnalyzer
+import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
@@ -41,4 +44,16 @@ abstract class UnderstandingModule {
 
     @Binds @Singleton
     abstract fun understandingService(impl: RealMemoryUnderstandingService): MemoryUnderstandingService
+
+    companion object {
+        /**
+         * The hybrid-routing seam (MU-1): resolved fresh per memory so a
+         * provider/key change takes effect immediately. Claude when configured,
+         * the on-device heuristics (this module's multibound set) otherwise.
+         */
+        @Provides
+        @Singleton
+        fun memoryAnalyzerProvider(aiManager: AIManager): MemoryAnalyzerProvider =
+            MemoryAnalyzerProvider { aiManager.getMemoryAnalyzers() }
+    }
 }

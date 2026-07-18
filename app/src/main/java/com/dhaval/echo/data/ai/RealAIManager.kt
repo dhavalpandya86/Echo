@@ -2,6 +2,7 @@ package com.dhaval.echo.data.ai
 
 import android.content.Context
 import com.dhaval.echo.data.preferences.AiPreferences
+import com.dhaval.echo.data.understanding.ClaudeMemoryAnalyzer
 import com.dhaval.echo.domain.ai.*
 import com.dhaval.echo.domain.auth.AuthRepository
 import dagger.Lazy
@@ -28,7 +29,8 @@ class RealAIManager @Inject constructor(
     private val authRepository: AuthRepository,
     private val aiPreferences: AiPreferences,
     private val sttEngine: com.dhaval.echo.domain.transcription.SpeechToTextEngine,
-    private val embeddingEngine: com.dhaval.echo.domain.embeddings.EmbeddingEngine
+    private val embeddingEngine: com.dhaval.echo.domain.embeddings.EmbeddingEngine,
+    private val localMemoryAnalyzers: Set<@JvmSuppressWildcards com.dhaval.echo.domain.understanding.MemoryAnalyzer>
 ) : AIManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -191,6 +193,19 @@ class RealAIManager @Inject constructor(
                 FakeConversationService()
             }
             else -> FakeConversationService()
+        }
+
+    override fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer> =
+        when (_currentProvider.value.id) {
+            // Claude selected with a key → one structured-output call, degrading
+            // to the local heuristics on failure (see ClaudeMemoryAnalyzer).
+            "claude" -> if (claudeApiKey.isNotBlank()) {
+                listOf(ClaudeMemoryAnalyzer(claudeApiKey, localMemoryAnalyzers.toList()))
+            } else {
+                localMemoryAnalyzers.toList()
+            }
+            // Local and any not-yet-wired provider → on-device heuristics.
+            else -> localMemoryAnalyzers.toList()
         }
 }
 

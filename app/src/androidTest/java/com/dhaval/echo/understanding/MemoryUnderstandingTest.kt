@@ -15,6 +15,7 @@ import com.dhaval.echo.data.understanding.LocalReminderAnalyzer
 import com.dhaval.echo.data.understanding.LocalTaskAnalyzer
 import com.dhaval.echo.data.understanding.RealMemoryUnderstandingService
 import com.dhaval.echo.data.db.DiaryEntry
+import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import com.dhaval.echo.domain.understanding.SourceKind
 import kotlinx.coroutines.flow.first
@@ -56,15 +57,17 @@ class MemoryUnderstandingTest {
             .build()
 
         val dao = db.understandingDao()
+        // Local-path analyzers, supplied through the MU-1 routing seam.
+        val localAnalyzers = listOf(
+            LocalPersonAnalyzer(),
+            LocalProjectAnalyzer(),
+            LocalTaskAnalyzer(),
+            LocalReminderAnalyzer(),
+            LocalMoodAnalyzer(),
+            KnownEntityAnalyzer(dao)
+        )
         service = RealMemoryUnderstandingService(
-            analyzers = setOf(
-                LocalPersonAnalyzer(),
-                LocalProjectAnalyzer(),
-                LocalTaskAnalyzer(),
-                LocalReminderAnalyzer(),
-                LocalMoodAnalyzer(),
-                KnownEntityAnalyzer(dao)
-            ),
+            analyzerProvider = MemoryAnalyzerProvider { localAnalyzers },
             resolver = LocalEntityResolver(dao)
         )
     }

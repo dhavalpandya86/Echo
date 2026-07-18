@@ -82,6 +82,15 @@ interface EntityResolver {
 }
 
 /**
+ * The hybrid-routing seam. Resolved fresh for each memory so a provider or
+ * API-key change takes effect immediately: returns the Claude analyzer when a
+ * key is configured, the on-device heuristics otherwise (MU-1).
+ */
+fun interface MemoryAnalyzerProvider {
+    fun analyzers(): List<MemoryAnalyzer>
+}
+
+/**
  * Orchestrates ANALYZE + RESOLVE for one memory. The worker calls only this.
  */
 interface MemoryUnderstandingService {

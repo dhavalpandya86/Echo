@@ -29,6 +29,14 @@ interface AIManager {
     fun getMemoryClassificationService(): MemoryClassificationService
     fun getTimelineIntelligenceService(): TimelineIntelligenceService
     fun getConversationService(): ConversationService
+
+    /**
+     * The Memory Understanding analyzers to run for a memory (MU-1). Routes
+     * Claude ⇄ on-device heuristics like the other service accessors: the
+     * Claude suite when its provider is selected with a key, the local
+     * heuristics otherwise.
+     */
+    fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer>
 }
 
 enum class AICapability {

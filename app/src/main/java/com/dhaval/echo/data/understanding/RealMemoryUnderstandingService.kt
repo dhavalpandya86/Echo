@@ -3,7 +3,7 @@ package com.dhaval.echo.data.understanding
 import android.util.Log
 import com.dhaval.echo.domain.understanding.EntityResolver
 import com.dhaval.echo.domain.understanding.Evidence
-import com.dhaval.echo.domain.understanding.MemoryAnalyzer
+import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import javax.inject.Inject
@@ -12,12 +12,14 @@ import javax.inject.Inject
  * Stage 3→5 orchestrator: run every analyzer, collect the evidence board,
  * hand it to the resolver.
  *
- * Analyzer independence is enforced here: each runs in its own try/catch, so
- * one specialist failing loudly never silences the others — the standing
+ * The analyzer set is resolved per memory via [analyzerProvider] so the hybrid
+ * routing (Claude ⇄ local) reflects the current provider and key. Analyzer
+ * independence is enforced here: each runs in its own try/catch, so one
+ * specialist failing loudly never silences the others — the standing
  * no-silent-failure rule.
  */
 class RealMemoryUnderstandingService @Inject constructor(
-    private val analyzers: Set<@JvmSuppressWildcards MemoryAnalyzer>,
+    private val analyzerProvider: MemoryAnalyzerProvider,
     private val resolver: EntityResolver
 ) : MemoryUnderstandingService {
 
@@ -28,7 +30,7 @@ class RealMemoryUnderstandingService @Inject constructor(
         }
 
         val board = mutableListOf<Evidence>()
-        for (analyzer in analyzers) {
+        for (analyzer in analyzerProvider.analyzers()) {
             runCatching { analyzer.analyze(content) }
                 .onSuccess { board += it }
                 .onFailure {

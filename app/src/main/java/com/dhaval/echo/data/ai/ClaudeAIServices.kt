@@ -27,7 +27,12 @@ private const val CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 private const val CLAUDE_MODEL = "claude-opus-4-8"
 private const val CLAUDE_TAG = "ClaudeAI"
 
-private suspend fun callClaude(
+/**
+ * Shared Claude Messages API call. `internal` so other data-layer callers in
+ * this module (e.g. the Memory Understanding analyzer) can reuse the same
+ * refusal-aware, text-block-filtering client without duplicating HTTP logic.
+ */
+internal suspend fun callClaude(
     apiKey: String,
     userMessage: String,
     systemPrompt: String = "",
