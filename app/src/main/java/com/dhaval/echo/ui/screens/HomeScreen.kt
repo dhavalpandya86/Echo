@@ -33,7 +33,12 @@ data class HomeUiState(
     val errorMessage: String? = null,
     val recentRecordings: List<TimelineEntry> = emptyList(),
     val stats: HomeStats = HomeStats(),
-    val insightOfDay: com.dhaval.echo.domain.ai.TimelineInsight? = null
+    val insightOfDay: com.dhaval.echo.domain.ai.TimelineInsight? = null,
+    // Today briefing (Phase 1)
+    val yesterdayRecap: String? = null,
+    val commitments: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList(),
+    val continueMemory: TimelineEntry? = null,
+    val revisitMemory: TimelineEntry? = null
 )
 
 data class HomeStats(
@@ -106,7 +111,8 @@ fun HomeScreen(
             state = state,
             paddingValues = innerPadding,
             onEntryClick = onNavigateToEntry,
-            onFavoriteClick = viewModel::toggleFavorite
+            onFavoriteClick = viewModel::toggleFavorite,
+            onOpenCommitments = onNavigateToTasks
         )
     }
 }
@@ -199,7 +205,8 @@ private fun HomeScreenContent(
     state: HomeUiState,
     paddingValues: PaddingValues,
     onEntryClick: (String) -> Unit,
-    onFavoriteClick: (String) -> Unit
+    onFavoriteClick: (String) -> Unit,
+    onOpenCommitments: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -209,10 +216,45 @@ private fun HomeScreenContent(
             start = 24.dp,
             end = 24.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(32.dp)
+        verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
         item { HeaderSection(state.displayName) }
 
+        // Yesterday — a gentle look back.
+        state.yesterdayRecap?.let { recap ->
+            item { BriefingSection(label = "Yesterday") { Text(recap, style = MaterialTheme.typography.bodyLarge) } }
+        }
+
+        // Waiting for you — today's commitments.
+        if (state.commitments.isNotEmpty()) {
+            item {
+                BriefingSection(label = "Waiting for you") {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        state.commitments.forEach { c -> CommitmentRow(c, onClick = onOpenCommitments) }
+                    }
+                }
+            }
+        }
+
+        // Continue — pick up where you left off.
+        state.continueMemory?.let { m ->
+            item {
+                BriefingSection(label = "Continue") {
+                    RevisitCard(m, onClick = { onEntryClick(m.id) })
+                }
+            }
+        }
+
+        // A memory worth revisiting.
+        state.revisitMemory?.let { m ->
+            item {
+                BriefingSection(label = "Worth revisiting") {
+                    RevisitCard(m, onClick = { onEntryClick(m.id) })
+                }
+            }
+        }
+
+        // Echo noticed — the quiet insight.
         state.insightOfDay?.let { insight ->
             item {
                 EchoInsightCard(
@@ -228,7 +270,7 @@ private fun HomeScreenContent(
 
         item {
             Text(
-                text = "Recent Memories",
+                text = "Recent memories",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -238,8 +280,8 @@ private fun HomeScreenContent(
         if (state.recentRecordings.isEmpty()) {
             item {
                 EchoEmptyState(
-                    message = "No memories yet.",
-                    description = "Tap + to record your voice or write your thoughts.",
+                    message = "Your first memory is waiting.",
+                    description = "Tap + to speak your mind or write a thought — Echo takes it from there.",
                     icon = Icons.Default.Mic
                 )
             }
@@ -258,6 +300,73 @@ private fun HomeScreenContent(
             }
         }
     }
+}
+
+/** A titled briefing block: a small soft label above its content. */
+@Composable
+private fun BriefingSection(label: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        content()
+    }
+}
+
+@Composable
+private fun CommitmentRow(item: com.dhaval.echo.data.db.ExtractedItem, onClick: () -> Unit) {
+    EchoCard(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(item.value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 2)
+                item.dueAtMillis?.let {
+                    Text(
+                        formatDue(it),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RevisitCard(entry: TimelineEntry, onClick: () -> Unit) {
+    EchoCard(onClick = onClick) {
+        Text(entry.title.ifBlank { "Untitled" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        val snippet = entry.summary ?: entry.transcription ?: entry.textContent
+        if (!snippet.isNullOrBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                snippet.take(120),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                maxLines = 2
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            entry.timestamp.format(DateTimeFormatter.ofPattern("d MMM • HH:mm")),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.secondary
+        )
+    }
+}
+
+private fun formatDue(millis: Long): String {
+    val dt = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault())
+    return dt.format(DateTimeFormatter.ofPattern("EEE, d MMM • HH:mm"))
 }
 
 @Composable

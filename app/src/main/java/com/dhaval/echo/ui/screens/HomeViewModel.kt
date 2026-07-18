@@ -25,7 +25,8 @@ class HomeViewModel @Inject constructor(
     private val diaryRepository: DiaryRepository,
     private val userRepository: UserRepository,
     private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
-    private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao
+    private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao,
+    private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao
 ) : ViewModel() {
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -36,16 +37,35 @@ class HomeViewModel @Inject constructor(
             audioRepository.currentRecordingState,
             timelineRepository.getTimelineEntries(),
             userRepository.getUserProfile(),
-            intelligenceDao.getAllInsights(userId)
-        ) { recordingState, entries, userProfile, insights ->
+            intelligenceDao.getAllInsights(userId),
+            understandingDao.getOpenActionables(userId)
+        ) { recordingState, entries, userProfile, insights, commitments ->
             val sortedEntries = entries.sortedByDescending { it.timestamp }
             val recent = sortedEntries.take(5)
-            
+
             val today = LocalDate.now()
             val todayCount = entries.count { it.timestamp.toLocalDate() == today }
-            
-            // Calculate streak
             val streak = calculateStreak(entries.map { it.timestamp.toLocalDate() }.distinct().sortedDescending())
+
+            // ── Briefing (Phase 1: Today) ──────────────────────────────
+            // Yesterday's recap: an honest count, warmly phrased.
+            val yesterday = today.minusDays(1)
+            val yEntries = sortedEntries.filter { it.timestamp.toLocalDate() == yesterday }
+            val yesterdayRecap = if (yEntries.isNotEmpty()) {
+                val n = yEntries.size
+                "Yesterday you captured $n ${if (n == 1) "memory" else "memories"}."
+            } else null
+
+            // Continue: the thing you were last doing.
+            val continueMemory = recent.firstOrNull()
+            // Worth revisiting: a favorite you didn't just touch, else something
+            // from a couple of weeks back — never the same card as "continue".
+            val revisitMemory = sortedEntries.firstOrNull {
+                it.isFavorite && it.id != continueMemory?.id
+            } ?: sortedEntries.lastOrNull {
+                it.id != continueMemory?.id &&
+                    ChronoUnit.DAYS.between(it.timestamp.toLocalDate(), today) >= 14
+            }
 
             val baseState = when (recordingState) {
                 is RecordingState.Idle -> HomeUiState()
@@ -62,6 +82,10 @@ class HomeViewModel @Inject constructor(
             baseState.copy(
                 displayName = userProfile?.displayName,
                 recentRecordings = recent,
+                yesterdayRecap = yesterdayRecap,
+                commitments = commitments.take(3),
+                continueMemory = continueMemory,
+                revisitMemory = revisitMemory,
                 stats = HomeStats(
                     todayCount = todayCount,
                     totalCount = entries.size,
