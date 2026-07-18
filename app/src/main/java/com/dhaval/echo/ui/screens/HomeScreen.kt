@@ -51,7 +51,6 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToEntry: (String) -> Unit,
     onNavigateToTasks: () -> Unit = {},
-    onNavigateToEntities: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -67,14 +66,11 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToTasks) {
                         Icon(Icons.Default.TaskAlt, contentDescription = "Commitments")
                     }
-                    IconButton(onClick = onNavigateToEntities) {
-                        Icon(Icons.Default.Hub, contentDescription = "People & Topics")
-                    }
                     IconButton(onClick = onNavigateToSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
+                        Icon(Icons.Default.Search, contentDescription = "Remember")
                     }
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, contentDescription = "You")
                     }
                 }
             )

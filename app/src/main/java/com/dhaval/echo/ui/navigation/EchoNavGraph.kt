@@ -160,7 +160,6 @@ fun EchoNavGraph(
                 onNavigateToCollections = { navController.navigate(CollectionsRoute) },
                 onNavigateToSettings = { navController.navigate(SettingsRoute) },
                 onNavigateToTasks = { navController.navigate(TasksRoute) },
-                onNavigateToEntities = { navController.navigate(EntitiesRoute) },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 }
@@ -232,7 +231,8 @@ fun EchoNavGraph(
             CollectionsScreen(
                 onCollectionClick = { id ->
                     navController.navigate(CollectionDetailsRoute(id))
-                }
+                },
+                onNavigateToEntities = { navController.navigate(EntitiesRoute) }
             )
         }
 

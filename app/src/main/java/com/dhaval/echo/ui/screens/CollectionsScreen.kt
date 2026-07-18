@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +19,7 @@ import com.dhaval.echo.ui.components.*
 @Composable
 fun CollectionsScreen(
     onCollectionClick: (String) -> Unit,
+    onNavigateToEntities: () -> Unit = {},
     viewModel: CollectionsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -28,6 +30,10 @@ fun CollectionsScreen(
             EchoTopBar(
                 title = "Worlds",
                 actions = {
+                    // People, places, projects & topics Echo recognizes live in Worlds.
+                    IconButton(onClick = onNavigateToEntities) {
+                        Icon(Icons.Default.Hub, contentDescription = "People & Topics")
+                    }
                     IconButton(onClick = { showCreateDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "New world")
                     }
