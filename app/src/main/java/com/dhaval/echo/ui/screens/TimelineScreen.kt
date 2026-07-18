@@ -28,7 +28,7 @@ fun TimelineScreen(
 
     Scaffold(
         topBar = {
-            EchoTopBar(title = "Timeline")
+            EchoTopBar(title = "Story")
         }
     ) { innerPadding ->
         Column(
@@ -39,14 +39,14 @@ fun TimelineScreen(
             EchoSearchBar(
                 value = state.searchQuery,
                 onValueChange = viewModel::onSearchQueryChange,
-                placeholder = "Search memories...",
+                placeholder = "Look back through your story…",
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
 
             if (state.groupedEntries.isEmpty() && !state.isLoading) {
                 EchoEmptyState(
-                    message = if (state.searchQuery.isEmpty()) "No memories yet." else "No results found.",
-                    description = if (state.searchQuery.isEmpty()) "Press the microphone and speak your mind." else "Try a different search term.",
+                    message = if (state.searchQuery.isEmpty()) "Your story begins here." else "Nothing from that moment yet.",
+                    description = if (state.searchQuery.isEmpty()) "Every memory you capture becomes part of the story of your life." else "Try a different moment, person, or place.",
                     icon = Icons.Default.Mic,
                     modifier = Modifier.fillMaxSize()
                 )

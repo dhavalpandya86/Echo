@@ -29,7 +29,7 @@ fun SearchScreen(
 
     Scaffold(
         topBar = {
-            EchoTopBar(title = "Search")
+            EchoTopBar(title = "Remember")
         }
     ) { innerPadding ->
         Column(
@@ -41,7 +41,7 @@ fun SearchScreen(
             EchoSearchBar(
                 value = state.filter.query,
                 onValueChange = viewModel::onQueryChanged,
-                placeholder = "Search memories, tags..."
+                placeholder = "What are you trying to remember?"
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -61,8 +61,8 @@ fun SearchScreen(
 
             if (state.results.isEmpty() && state.filter.query.isNotEmpty()) {
                 EchoEmptyState(
-                    message = "No results found.",
-                    description = "Try searching for something else.",
+                    message = "I couldn't find that yet.",
+                    description = "Try remembering a person, place, or moment instead.",
                     icon = Icons.Default.Search
                 )
             } else if (state.results.isEmpty()) {
@@ -87,8 +87,8 @@ fun SearchScreen(
                 }
 
                 EchoEmptyState(
-                    message = "Search your memories.",
-                    description = "Find that specific moment you're looking for.",
+                    message = "What are you trying to remember?",
+                    description = "A person, a place, a moment — I'll help you find it.",
                     icon = Icons.Default.Mic,
                     modifier = Modifier.weight(1f)
                 )

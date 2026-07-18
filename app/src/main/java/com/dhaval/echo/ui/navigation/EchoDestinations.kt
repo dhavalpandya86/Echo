@@ -2,11 +2,11 @@ package com.dhaval.echo.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.ui.graphics.vector.ImageVector
 import kotlinx.serialization.Serializable
 
@@ -80,17 +80,21 @@ object EntitiesRoute
 data class EntityDetailsRoute(val entityId: String)
 
 /**
- * Top-level destinations represented in the Bottom Navigation Bar.
+ * Echo's five states of mind (+ You) — the only navigation the user sees.
+ * Labels are human, never software words (Constitution §1). Routes keep their
+ * internal names; only the felt layer changes.
+ *   Today = Home · Story = Timeline · Worlds = Collections
+ *   Remember = Search · Reflect = Conversation · You = Settings
  */
 enum class TopLevelDestination(
     val route: Any,
     val icon: ImageVector,
     val label: String
 ) {
-    Timeline(TimelineRoute, Icons.Default.History, "Timeline"),
-    Home(HomeRoute, Icons.Default.Home, "Home"),
-    Chat(ConversationRoute, Icons.Default.AutoAwesome, "Chat"),
-    Collections(CollectionsRoute, Icons.Default.Folder, "Collections"),
-    Search(SearchRoute, Icons.Default.Search, "Search"),
-    Settings(SettingsRoute, Icons.Default.Settings, "Settings")
+    Today(HomeRoute, Icons.Default.WbSunny, "Today"),
+    Story(TimelineRoute, Icons.Default.AutoStories, "Story"),
+    Worlds(CollectionsRoute, Icons.Default.Public, "Worlds"),
+    Remember(SearchRoute, Icons.Default.Search, "Remember"),
+    Reflect(ConversationRoute, Icons.Default.AutoAwesome, "Reflect"),
+    You(SettingsRoute, Icons.Default.Person, "You")
 }

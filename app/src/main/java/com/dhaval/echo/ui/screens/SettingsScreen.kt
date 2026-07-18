@@ -28,7 +28,7 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            EchoTopBar(title = "Settings")
+            EchoTopBar(title = "You")
         }
     ) { innerPadding ->
         Column(

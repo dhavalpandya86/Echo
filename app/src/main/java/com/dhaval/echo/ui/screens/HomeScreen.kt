@@ -65,7 +65,7 @@ fun HomeScreen(
             EchoTopBar(
                 actions = {
                     IconButton(onClick = onNavigateToTasks) {
-                        Icon(Icons.Default.TaskAlt, contentDescription = "Tasks")
+                        Icon(Icons.Default.TaskAlt, contentDescription = "Commitments")
                     }
                     IconButton(onClick = onNavigateToEntities) {
                         Icon(Icons.Default.Hub, contentDescription = "People & Topics")

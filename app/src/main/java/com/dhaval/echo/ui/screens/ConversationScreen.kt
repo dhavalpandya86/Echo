@@ -47,7 +47,7 @@ fun ConversationScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Echo Assistant", fontWeight = FontWeight.Bold) },
+                title = { Text("Reflect", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { viewModel.startNewConversation() }) {
                         Icon(Icons.Default.Add, contentDescription = "New Chat")
@@ -119,14 +119,14 @@ fun WelcomeView(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            "Ask me anything about your life.",
+            "Let's make sense of things together.",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "I'll answer based on your memories.",
+            "I'll reflect with you, drawing on what you've lived.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -289,7 +289,7 @@ fun ChatInput(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask Echo...") },
+                placeholder = { Text("What would you like to understand?") },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,

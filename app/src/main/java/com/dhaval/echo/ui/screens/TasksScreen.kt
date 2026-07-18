@@ -34,13 +34,13 @@ fun TasksScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { EchoTopBar(title = "Tasks & Reminders", onBackClick = onNavigateBack) }
+        topBar = { EchoTopBar(title = "Commitments", onBackClick = onNavigateBack) }
     ) { padding ->
         if (!state.isLoading && state.items.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 EchoEmptyState(
-                    message = "No open tasks",
-                    description = "Tasks and reminders Echo finds in your memories show up here.",
+                    message = "Nothing is waiting for you today.",
+                    description = "Enjoy the space. Commitments Echo notices in your memories will gather here.",
                     icon = Icons.Default.TaskAlt
                 )
             }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -25,10 +26,10 @@ fun CollectionsScreen(
     Scaffold(
         topBar = {
             EchoTopBar(
-                title = "Collections",
+                title = "Worlds",
                 actions = {
                     IconButton(onClick = { showCreateDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create Collection")
+                        Icon(Icons.Default.Add, contentDescription = "New world")
                     }
                 }
             )
@@ -36,9 +37,9 @@ fun CollectionsScreen(
     ) { innerPadding ->
         if (uiState.collections.isEmpty()) {
             EchoEmptyState(
-                message = "No collections yet.",
-                description = "Organize memories into meaningful groups.",
-                icon = Icons.Default.Folder,
+                message = "Your worlds will grow here.",
+                description = "Every memory helps Echo understand the people, places, projects, and ideas that shape your life.",
+                icon = Icons.Default.Public,
                 modifier = Modifier.padding(innerPadding).fillMaxSize()
             )
         } else {
