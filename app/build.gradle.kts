@@ -94,6 +94,9 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.play.services.auth)
     implementation(libs.kotlinx.coroutines.play.services)
+    // On-device OCR (MU-3): Latin + Devanagari scripts, bundled models.
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.devanagari)
     implementation(libs.facebook.login)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)

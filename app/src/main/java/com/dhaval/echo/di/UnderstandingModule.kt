@@ -7,12 +7,14 @@ import com.dhaval.echo.data.understanding.LocalPersonAnalyzer
 import com.dhaval.echo.data.understanding.LocalProjectAnalyzer
 import com.dhaval.echo.data.understanding.LocalReminderAnalyzer
 import com.dhaval.echo.data.understanding.LocalTaskAnalyzer
+import com.dhaval.echo.data.understanding.MlKitPhotoTextExtractor
 import com.dhaval.echo.data.understanding.RealMemoryUnderstandingService
 import com.dhaval.echo.domain.ai.AIManager
 import com.dhaval.echo.domain.understanding.EntityResolver
 import com.dhaval.echo.domain.understanding.MemoryAnalyzer
 import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
+import com.dhaval.echo.domain.understanding.PhotoTextExtractor
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -41,6 +43,9 @@ abstract class UnderstandingModule {
 
     @Binds @Singleton
     abstract fun entityResolver(impl: LocalEntityResolver): EntityResolver
+
+    @Binds @Singleton
+    abstract fun photoTextExtractor(impl: MlKitPhotoTextExtractor): PhotoTextExtractor
 
     @Binds @Singleton
     abstract fun understandingService(impl: RealMemoryUnderstandingService): MemoryUnderstandingService

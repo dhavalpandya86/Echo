@@ -34,7 +34,8 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     private val intelligenceDao: IntelligenceDao,
     private val aiManager: AIManager,
     private val tagRepository: TagRepository,
-    private val understandingService: MemoryUnderstandingService
+    private val understandingService: MemoryUnderstandingService,
+    private val photoTextExtractor: com.dhaval.echo.domain.understanding.PhotoTextExtractor
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -82,49 +83,54 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     }
 
     /**
-     * The text this memory should be reasoned about. Transcribes audio when the
-     * memory has any; folds in written content so a mixed memory contributes both.
+     * The text this memory should be reasoned about: transcript (voice) +
+     * written content (text) + OCR (photos), so a mixed memory contributes every
+     * modality and a photo-only memory is no longer text-less.
      */
     private suspend fun resolveSourceText(entry: DiaryEntry): String {
         val audioFile = entry.audioPath.takeIf { it.isNotBlank() }?.let(::File)
         val hasAudio = audioFile?.exists() == true
 
-        if (!hasAudio) {
+        val transcript = if (hasAudio) {
+            intelligenceDao.updateTranscriptionStatus(entry.id, IntelligenceStatus.TRANSCRIBING)
+            val result = aiManager.getTranscriptionService().transcribe(audioFile!!.absolutePath).last()
+            intelligenceDao.updateTranscript(
+                entry.id, result.text, result.segments.firstOrNull()?.languageCode
+            )
+            if (result.segments.isNotEmpty()) {
+                intelligenceDao.insertSegments(
+                    result.segments.map {
+                        TranscriptionSegmentEntity(
+                            entryId = entry.id,
+                            userId = entry.userId,
+                            startTime = it.startTime,
+                            endTime = it.endTime,
+                            text = it.text,
+                            languageCode = it.languageCode
+                        )
+                    }
+                )
+            }
+            intelligenceDao.updateTranscriptionStatus(entry.id, IntelligenceStatus.COMPLETED)
+            result.text
+        } else {
             if (entry.audioPath.isNotBlank()) {
                 // Path recorded but file is gone — worth knowing about; not fatal.
                 Log.w(TAG, "Entry ${entry.id} references missing audio: ${entry.audioPath}")
             }
             intelligenceDao.updateTranscriptionStatus(entry.id, IntelligenceStatus.COMPLETED)
-            return entry.textContent.orEmpty().trim()
+            ""
         }
 
-        intelligenceDao.updateTranscriptionStatus(entry.id, IntelligenceStatus.TRANSCRIBING)
-        val result = aiManager.getTranscriptionService().transcribe(audioFile.absolutePath).last()
-
-        intelligenceDao.updateTranscript(
-            entry.id,
-            result.text,
-            result.segments.firstOrNull()?.languageCode
-        )
-        if (result.segments.isNotEmpty()) {
-            intelligenceDao.insertSegments(
-                result.segments.map {
-                    TranscriptionSegmentEntity(
-                        entryId = entry.id,
-                        userId = entry.userId,
-                        startTime = it.startTime,
-                        endTime = it.endTime,
-                        text = it.text,
-                        languageCode = it.languageCode
-                    )
-                }
-            )
-        }
-        intelligenceDao.updateTranscriptionStatus(entry.id, IntelligenceStatus.COMPLETED)
+        // Photo OCR (MU-3) — degrade to empty on any failure, never block the memory.
+        val ocr = runCatching { photoTextExtractor.extractText(entry.imagePaths.orEmpty()) }
+            .onFailure { Log.w(TAG, "Photo OCR failed for ${entry.id}", it) }
+            .getOrDefault("")
 
         return listOfNotNull(
-            result.text.takeIf { it.isNotBlank() },
-            entry.textContent?.takeIf { it.isNotBlank() }
+            transcript.takeIf { it.isNotBlank() },
+            entry.textContent?.takeIf { it.isNotBlank() },
+            ocr.takeIf { it.isNotBlank() }
         ).joinToString("\n\n").trim()
     }
 
