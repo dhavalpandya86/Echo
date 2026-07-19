@@ -7,12 +7,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.dhaval.echo.data.intelligence.UnderstandingBackfillWorker
 import com.dhaval.echo.ui.components.EchoButton
 import com.dhaval.echo.ui.components.EchoCard
 import com.dhaval.echo.ui.components.EchoTopBar
@@ -26,6 +29,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showNameDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -59,6 +63,22 @@ fun SettingsScreen(
                     title = "Log Out", 
                     color = MaterialTheme.colorScheme.error,
                     onClick = { viewModel.logout() }
+                )
+            }
+
+            SettingsGroup(title = "Understanding") {
+                SettingsItem(
+                    icon = Icons.Default.Hub,
+                    title = "Rebuild connections",
+                    subtitle = "Re-read every memory to refresh people, feelings & Worlds",
+                    onClick = {
+                        UnderstandingBackfillWorker.enqueue(context)
+                        Toast.makeText(
+                            context,
+                            "Echo is re-reading your memories. Worlds and connections will fill in shortly.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 )
             }
 
