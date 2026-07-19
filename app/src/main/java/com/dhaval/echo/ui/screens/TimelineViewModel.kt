@@ -12,26 +12,22 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
-/**
- * Groups for the timeline.
- */
-enum class TimelineGroup(val label: String) {
-    TODAY("Today"),
-    YESTERDAY("Yesterday"),
-    THIS_WEEK("This Week"),
-    LAST_WEEK("Last Week"),
-    EARLIER("Earlier")
-}
+/** Part of the day a memory belongs to, for the narrative timeline. */
+enum class DayPart(val label: String) { MORNING("Morning"), AFTERNOON("Afternoon"), EVENING("Evening") }
+
+data class StoryPart(val part: DayPart, val entries: List<TimelineEntry>)
+data class StoryDay(val date: LocalDate, val parts: List<StoryPart>)
 
 /**
- * UI State for the Timeline Screen.
+ * UI State for the Story (timeline) Screen.
  */
 data class TimelineUiState(
-    val groupedEntries: Map<TimelineGroup, List<TimelineEntry>> = emptyMap(),
+    val days: List<StoryDay> = emptyList(),
+    val memoryCount: Int = 0,
+    val monthLabel: String = "",
     val searchQuery: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
-    val relatedCounts: Map<String, Int> = emptyMap(),
     val insights: List<com.dhaval.echo.domain.ai.TimelineInsight> = emptyList()
 )
 
@@ -57,7 +53,10 @@ class TimelineViewModel @Inject constructor(
                 intelligenceDao.getAllInsights(userId)
             ) { entries, insights ->
                 TimelineUiState(
-                    groupedEntries = groupEntries(entries),
+                    days = groupIntoDays(entries),
+                    memoryCount = entries.size,
+                    monthLabel = (entries.maxByOrNull { it.timestamp }?.timestamp?.toLocalDate() ?: LocalDate.now())
+                        .format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy")),
                     searchQuery = query,
                     isLoading = false,
                     insights = insights.map {
@@ -91,22 +90,20 @@ class TimelineViewModel @Inject constructor(
         }
     }
 
-    private fun groupEntries(entries: List<TimelineEntry>): Map<TimelineGroup, List<TimelineEntry>> {
-        val today = LocalDate.now()
-        val yesterday = today.minusDays(1)
-        val startOfThisWeek = today.minusDays(today.dayOfWeek.value.toLong() - 1)
-        val startOfLastWeek = startOfThisWeek.minusWeeks(1)
-
-        return entries.sortedByDescending { it.timestamp }
-            .groupBy { entry ->
-                val entryDate = entry.timestamp.toLocalDate()
-                when {
-                    entryDate == today -> TimelineGroup.TODAY
-                    entryDate == yesterday -> TimelineGroup.YESTERDAY
-                    !entryDate.isBefore(startOfThisWeek) -> TimelineGroup.THIS_WEEK
-                    !entryDate.isBefore(startOfLastWeek) -> TimelineGroup.LAST_WEEK
-                    else -> TimelineGroup.EARLIER
-                }
+    /** Groups memories into days (newest first), each split Morning→Afternoon→Evening. */
+    private fun groupIntoDays(entries: List<TimelineEntry>): List<StoryDay> =
+        entries.groupBy { it.timestamp.toLocalDate() }
+            .toSortedMap(reverseOrder())
+            .map { (date, dayEntries) ->
+                val parts = dayEntries.groupBy { partOf(it.timestamp.hour) }
+                    .toSortedMap(compareBy { it.ordinal })
+                    .map { (part, es) -> StoryPart(part, es.sortedBy { it.timestamp }) }
+                StoryDay(date, parts)
             }
+
+    private fun partOf(hour: Int): DayPart = when (hour) {
+        in 5..11 -> DayPart.MORNING
+        in 12..16 -> DayPart.AFTERNOON
+        else -> DayPart.EVENING
     }
 }
