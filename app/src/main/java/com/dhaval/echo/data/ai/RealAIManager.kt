@@ -147,8 +147,8 @@ class RealAIManager @Inject constructor(
 
     override fun getTitleGenerationService(): TitleGenerationService =
         when (_currentProvider.value.id) {
-            "claude" -> if (claudeApiKey.isNotBlank()) ClaudeTitleGenerationService(claudeApiKey) else FakeTitleGenerationService()
-            else -> FakeTitleGenerationService()
+            "claude" -> if (claudeApiKey.isNotBlank()) ClaudeTitleGenerationService(claudeApiKey) else LocalTitleGenerationService()
+            else -> LocalTitleGenerationService()
         }
 
     override fun getTagSuggestionService(): TagSuggestionService =
