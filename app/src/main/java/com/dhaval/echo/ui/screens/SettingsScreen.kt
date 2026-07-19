@@ -70,7 +70,7 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Hub,
                     title = "Rebuild connections",
-                    subtitle = "Re-read every memory to refresh people, feelings & Worlds",
+                    subtitle = "Re-read every memory to refresh tags, people, feelings & Worlds",
                     onClick = {
                         UnderstandingBackfillWorker.enqueue(context)
                         Toast.makeText(

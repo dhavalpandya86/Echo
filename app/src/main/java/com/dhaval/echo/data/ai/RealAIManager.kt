@@ -153,8 +153,8 @@ class RealAIManager @Inject constructor(
 
     override fun getTagSuggestionService(): TagSuggestionService =
         when (_currentProvider.value.id) {
-            "claude" -> if (claudeApiKey.isNotBlank()) ClaudeTagSuggestionService(claudeApiKey) else FakeTagSuggestionService()
-            else -> FakeTagSuggestionService()
+            "claude" -> if (claudeApiKey.isNotBlank()) ClaudeTagSuggestionService(claudeApiKey) else LocalTagSuggestionService()
+            else -> LocalTagSuggestionService()
         }
 
     override fun getEmbeddingService(): EmbeddingService = object : EmbeddingService {

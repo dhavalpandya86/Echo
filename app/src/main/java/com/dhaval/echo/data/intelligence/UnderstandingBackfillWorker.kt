@@ -6,13 +6,16 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.dhaval.echo.data.db.DiaryEntry
 import com.dhaval.echo.data.db.DiaryEntryDao
+import com.dhaval.echo.domain.ai.AIManager
 import com.dhaval.echo.domain.auth.AuthRepository
+import com.dhaval.echo.domain.tags.TagRepository
 import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import com.dhaval.echo.domain.understanding.SourceKind
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.last
 
 /**
  * One-shot backfill: re-runs the Understanding stage over every existing memory so
@@ -29,6 +32,8 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val diaryEntryDao: DiaryEntryDao,
     private val understandingService: MemoryUnderstandingService,
+    private val tagRepository: TagRepository,
+    private val aiManager: AIManager,
     private val authRepository: AuthRepository
 ) : CoroutineWorker(context, params) {
 
@@ -50,10 +55,26 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
             runCatching {
                 understandingService.understand(normalizedContentFor(entry, userId, text))
             }.onFailure { Log.e(TAG, "Backfill understanding failed for ${entry.id}", it) }
+            runCatching { refreshTags(entry.id, text) }
+                .onFailure { Log.w(TAG, "Backfill tag refresh failed for ${entry.id}", it) }
             processed++
         }
         Log.i(TAG, "Understanding backfill done: $processed processed, $skipped without text")
         return Result.success()
+    }
+
+    /**
+     * Replace the old fixed-placeholder tags with real, content-derived ones.
+     * Only the exact legacy placeholder trio is removed — genuine user tags are
+     * left alone — then fresh tags are added (adding is idempotent).
+     */
+    private suspend fun refreshTags(entryId: String, text: String) {
+        val existing = tagRepository.getTagsForEntry(entryId).first().toSet()
+        if (existing.containsAll(LEGACY_PLACEHOLDER_TAGS)) {
+            LEGACY_PLACEHOLDER_TAGS.forEach { tagRepository.removeTagFromEntry(entryId, it) }
+        }
+        aiManager.getTagSuggestionService().suggestTags(text).last()
+            .forEach { tagRepository.addTagToEntry(entryId, it) }
     }
 
     /** Reuse stored transcript + written text only — the heavy stages already ran. */
@@ -81,6 +102,9 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
     companion object {
         private const val TAG = "UnderstandingBackfill"
         const val WORK_NAME = "understanding_backfill"
+
+        /** The exact tags the old FakeTagSuggestionService emitted for every memory. */
+        private val LEGACY_PLACEHOLDER_TAGS = listOf("Personal", "Reflection", "Voice")
 
         /** Enqueue the one-shot backfill; KEEP so repeated taps don't pile up. */
         fun enqueue(context: Context) {
