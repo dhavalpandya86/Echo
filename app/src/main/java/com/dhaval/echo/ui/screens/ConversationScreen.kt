@@ -100,60 +100,95 @@ fun ConversationScreen(
     }
 }
 
+private data class ReflectPrompt(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val title: String,
+    val description: String,
+    val question: String
+)
+
+private val reflectPrompts = listOf(
+    ReflectPrompt(
+        Icons.Default.Article, "Summarize this week",
+        "A narrative overview of your thoughts, actions, and milestones from the last seven days.",
+        "Summarize what I've been thinking about and doing this week."
+    ),
+    ReflectPrompt(
+        Icons.Default.Mood, "How has my mood changed?",
+        "See the emotional shape of your recent memories and any patterns in it.",
+        "How has my mood changed recently, and what seems to affect it?"
+    ),
+    ReflectPrompt(
+        Icons.Default.TaskAlt, "What have I promised?",
+        "The commitments and intentions you've spoken into Echo lately.",
+        "What commitments and promises have I made recently?"
+    ),
+    ReflectPrompt(
+        Icons.Default.Bolt, "What am I focused on?",
+        "The people, projects, and ideas taking up your attention right now.",
+        "What projects, people and topics am I most focused on right now?"
+    )
+)
+
 @Composable
 fun WelcomeView(
     suggestedQuestions: List<String>,
     onQuestionClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Icon(
-            Icons.Default.AutoAwesome,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Let's make sense of things together.",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "I'll reflect with you, drawing on what you've lived.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        Spacer(Modifier.height(32.dp))
-        
-        Text(
-            "Suggested",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(12.dp))
-        
-        suggestedQuestions.forEach { question ->
-            Surface(
-                onClick = { onQuestionClick(question) },
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
-            ) {
+        item {
+            Column(Modifier.padding(bottom = 4.dp)) {
                 Text(
-                    question,
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium
+                    "What would you like to reflect on?",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Choose a lens to see how you've been evolving lately — or just ask below.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+        items(reflectPrompts) { prompt ->
+            ReflectPromptCard(prompt, onClick = { onQuestionClick(prompt.question) })
+        }
+    }
+}
+
+@Composable
+private fun ReflectPromptCard(prompt: ReflectPrompt, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
+        shadowElevation = 2.dp
+    ) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(prompt.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(prompt.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    prompt.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
         }

@@ -25,6 +25,15 @@ data class CoOccurrence(
     val shared: Int
 )
 
+/** A connection Echo inferred (Stage-6) — a memory linked to an entity it didn't name. */
+data class InferredConnectionView(
+    val memoryId: String,
+    val memoryTitle: String,
+    val entityId: String,
+    val entityName: String,
+    val entityType: String
+)
+
 @Dao
 interface UnderstandingDao {
 
@@ -116,6 +125,19 @@ interface UnderstandingDao {
 
     @Query("SELECT * FROM memory_entity_links WHERE entityId = :entityId")
     suspend fun getLinksForEntity(entityId: String): List<MemoryEntityLink>
+
+    /** The most recent connection Echo inferred, for surfacing in Remember. */
+    @Query(
+        """SELECT d.id AS memoryId, d.title AS memoryTitle,
+                  e.id AS entityId, e.name AS entityName, e.type AS entityType
+           FROM memory_entity_links l
+           JOIN diary_entries d ON d.id = l.memoryId
+           JOIN entities e ON e.id = l.entityId
+           WHERE l.inferred = 1 AND e.userId = :userId
+           ORDER BY l.createdAt DESC
+           LIMIT 1"""
+    )
+    fun recentInferredConnection(userId: String): kotlinx.coroutines.flow.Flow<InferredConnectionView?>
 
     // ── Evidence board (extracted items) ─────────────────────────────
 
