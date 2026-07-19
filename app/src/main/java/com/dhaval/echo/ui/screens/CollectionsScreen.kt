@@ -32,10 +32,12 @@ import com.dhaval.echo.ui.components.EchoTopBar
 fun CollectionsScreen(
     onCollectionClick: (String) -> Unit,
     onNavigateToEntities: () -> Unit = {},
+    onEntityClick: (String) -> Unit = {},
     onProfileClick: () -> Unit = {},
     viewModel: CollectionsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val discoveredWorlds by viewModel.discoveredWorlds.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -78,6 +80,35 @@ fun CollectionsScreen(
                 }
             }
 
+            if (discoveredWorlds.isNotEmpty()) {
+                item {
+                    Text(
+                        "Discovered",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                items(discoveredWorlds, key = { it.id }) { world ->
+                    WorldCard(
+                        name = world.title,
+                        count = world.memoryCount,
+                        subtitle = if (world.entityCount == 1) "1 connection" else "${world.entityCount} connections",
+                        onClick = { onEntityClick(world.seedEntityId) }
+                    )
+                }
+            }
+
+            if (uiState.collections.isNotEmpty()) {
+                item {
+                    Text(
+                        "Your collections",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
             items(uiState.collections, key = { it.collection.id }) { item ->
                 WorldCard(
                     name = item.collection.name,
@@ -103,7 +134,7 @@ fun CollectionsScreen(
 
 /** A world: a soft-gradient card with an icon, title, and memory count. */
 @Composable
-private fun WorldCard(name: String, count: Int, onClick: () -> Unit) {
+private fun WorldCard(name: String, count: Int, onClick: () -> Unit, subtitle: String? = null) {
     val primary = MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier
@@ -132,7 +163,10 @@ private fun WorldCard(name: String, count: Int, onClick: () -> Unit) {
                 Text(name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (count == 1) "1 memory" else "$count memories",
+                    buildString {
+                        append(if (count == 1) "1 memory" else "$count memories")
+                        subtitle?.let { append(" · $it") }
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )

@@ -165,6 +165,23 @@ interface UnderstandingDao {
     )
     suspend fun getRelatedEntitiesOnce(entityId: String): List<RelatedEntityView>
 
+    // ── Worlds clustering (Phase C) ──────────────────────────────────
+
+    /** Every active entity for a user — the nodes to cluster into Worlds. */
+    @Query("SELECT * FROM entities WHERE userId = :userId AND archived = 0")
+    suspend fun getActiveEntities(userId: String): List<EntityNode>
+
+    /** Every edge for a user — the graph to cluster. */
+    @Query("SELECT * FROM entity_relationships WHERE userId = :userId")
+    suspend fun getAllRelationshipsForUser(userId: String): List<EntityRelationship>
+
+    /** How many distinct memories a set of entities spans (stated links only). */
+    @Query(
+        """SELECT COUNT(DISTINCT memoryId) FROM memory_entity_links
+           WHERE entityId IN (:entityIds) AND inferred = 0"""
+    )
+    suspend fun countMemoriesForEntities(entityIds: List<String>): Int
+
     // ── Corrections loop (Phase B) ───────────────────────────────────
 
     @Query("UPDATE entities SET archived = :archived WHERE id = :entityId")

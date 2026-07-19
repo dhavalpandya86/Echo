@@ -27,8 +27,14 @@ data class CollectionsUiState(
 
 @HiltViewModel
 class CollectionsViewModel @Inject constructor(
-    private val repository: CollectionRepository
+    private val repository: CollectionRepository,
+    private val worldDiscovery: com.dhaval.echo.data.understanding.WorldDiscoveryService
 ) : ViewModel() {
+
+    /** Worlds Echo discovered by clustering the entity graph (Phase C). */
+    val discoveredWorlds: StateFlow<List<com.dhaval.echo.data.understanding.DiscoveredWorld>> =
+        kotlinx.coroutines.flow.flow { emit(worldDiscovery.discover()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CollectionsUiState> = repository.getAllCollections()

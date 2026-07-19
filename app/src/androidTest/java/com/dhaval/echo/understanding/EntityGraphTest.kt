@@ -120,6 +120,28 @@ class EntityGraphTest {
     }
 
     @Test
+    fun worlds_discovery_finds_a_cluster_from_the_real_graph() = runBlocking {
+        // Two memories about the same pair → a clustered World spanning both.
+        understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")
+        understand("m2", "Tomorrow I need to call Raj about the Oceanis packaging.")
+        val dao = db.understandingDao()
+
+        // Exactly what WorldDiscoveryService composes, minus the auth lookup.
+        val entities = dao.getActiveEntities(userId)
+        val edges = dao.getAllRelationshipsForUser(userId)
+        val clusters = com.dhaval.echo.data.understanding.WorldClusterer().cluster(entities, edges)
+
+        assertTrue("at least one World discovered", clusters.isNotEmpty())
+        val world = clusters.first { it.entityIds.size >= 2 }
+        val names = world.entityIds.mapNotNull { id -> entities.first { it.id == id }.name }.toSet()
+        assertTrue("the World holds Raj and Oceanis", names.containsAll(setOf("Raj", "Oceanis")))
+        assertEquals(
+            "the World spans both memories",
+            2, dao.countMemoriesForEntities(world.entityIds)
+        )
+    }
+
+    @Test
     fun a_feeling_joins_the_graph_and_connects_to_what_co_occurs() = runBlocking {
         // Phase B: feelings are entities, so "what was I doing when I felt excited?"
         // is answerable by graph traversal.

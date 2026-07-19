@@ -237,6 +237,7 @@ fun EchoNavGraph(
                     navController.navigate(CollectionDetailsRoute(id))
                 },
                 onNavigateToEntities = { navController.navigate(EntitiesRoute) },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) },
                 onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
