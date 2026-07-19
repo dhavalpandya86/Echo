@@ -31,6 +31,11 @@ private fun String.sentenceContaining(needle: String): String? =
 /** Words that look like names but never are. */
 private val CAPITALIZED_STOPLIST = setOf(
     "i", "i'm", "i'll", "i've", "the", "a", "an", "and", "but", "or", "so",
+    // pronouns & fillers that can trail a case-insensitive trigger ("with Me")
+    "me", "my", "we", "us", "you", "your", "he", "she", "they", "them", "him",
+    "her", "his", "it", "this", "that", "these", "those",
+    // ubiquitous common nouns that aren't a specific place/person
+    "home", "work", "here", "there", "everyone", "someone", "people",
     "today", "tomorrow", "tonight", "yesterday",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
     "january", "february", "march", "april", "may", "june", "july",
@@ -41,21 +46,38 @@ private val CAPITALIZED_STOPLIST = setOf(
 // ── Specialist: People ────────────────────────────────────────────────
 
 /**
- * Finds people via interaction context: a capitalized token right after a verb
- * or preposition that implies a person ("call Raj", "meeting with Prabir").
- * Bare capitalized words without that context are skipped — too noisy to
- * claim as people at heuristic confidence.
+ * Finds people via three kinds of context, because real notes name people in
+ * more than one way:
+ *  1. Interaction — a capitalized name after a person-verb/preposition
+ *     ("call Raj", "meeting with Prabir", "from Meera").
+ *  2. Relationship — a name after a kinship/role word ("my brother Sam",
+ *     "our friend Meera", "boss Priya").
+ *  3. Subject — a name doing something human ("Raj said", "Meera came over",
+ *     "Sam and I").
+ * Bare capitalized words with none of that context are still skipped — too noisy
+ * to claim as people at heuristic confidence. The corrections loop lets the user
+ * archive or merge the occasional miss, so a little more recall is safe now.
  */
 class LocalPersonAnalyzer @Inject constructor() : MemoryAnalyzer {
     override val kinds = setOf(EvidenceKind.PERSON)
 
-    private val pattern = Regex(
-        """\b(call(?:ed|ing)?|meet(?:ing)?|met|with|tell|told|ask(?:ed)?|email(?:ed)?|text(?:ed)?|message(?:d)?|visit(?:ed)?|thank(?:ed)?|from|remind)\s+([A-Z][a-z]{2,})\b"""
+    // Group 1 holds the name in every pattern. Trigger words are case-insensitive
+    // (they often start a sentence, capitalized) but names must be capitalized.
+    private val patterns = listOf(
+        // 1. interaction verb / preposition → name
+        Regex("""\b(?i:call(?:ed|ing)?|meet(?:ing)?|met|with|tell|told|ask(?:ed)?|email(?:ed)?|text(?:ed)?|message(?:d)?|visit(?:ed)?|thank(?:ed)?|saw|see|from|remind)\s+([A-Z][a-z]{1,})\b"""),
+        // 2. relationship word → name
+        Regex("""\b(?i:my|our|his|her|their)\s+(?i:friend|brother|sister|mom|mother|dad|father|son|daughter|kid|wife|husband|boss|colleague|coworker|cousin|uncle|aunt|partner|boyfriend|girlfriend|neighbou?r|teammate|manager|mentor)s?\s+([A-Z][a-z]{1,})\b"""),
+        // 3. name in subject position doing something human
+        Regex("""\b([A-Z][a-z]{2,})\s+(?i:said|says|told|called|texted|messaged|emailed|came|come|asked|mentioned|thinks|feels|wants|and I)\b"""),
+        // 4. a full "First Last" name, gated by an introduction cue so it doesn't
+        //    swallow two-word places ("this is Komal Patel", "with me Priya Shah")
+        Regex("""\b(?i:this is|i am|i'm|named|call me|with me|me|and)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)\b""")
     )
 
     override suspend fun analyze(content: NormalizedContent): List<Evidence> =
-        pattern.findAll(content.text)
-            .map { it.groupValues[2] }
+        patterns.asSequence()
+            .flatMap { p -> p.findAll(content.text).map { it.groupValues[1] } }
             .filter { it.lowercase() !in CAPITALIZED_STOPLIST }
             .distinctBy { it.lowercase() }
             .map { name ->
@@ -99,6 +121,42 @@ class LocalProjectAnalyzer @Inject constructor() : MemoryAnalyzer {
                     confidence = 0.55f
                 )
             }
+}
+
+// ── Specialist: Places ────────────────────────────────────────────────
+
+/**
+ * Finds places via movement/location context: a capitalized place name after a
+ * travel verb or spatial preposition ("went to Goa", "in Ahmedabad", "trip to
+ * New Delhi", "back from Mumbai"). Captures up to two capitalized words so
+ * "New Delhi" stays one place. There was no fresh place extractor before — places
+ * only surfaced once already known — so informal location mentions were invisible.
+ */
+class LocalPlaceAnalyzer @Inject constructor() : MemoryAnalyzer {
+    override val kinds = setOf(EvidenceKind.PLACE)
+
+    private val patterns = listOf(
+        // preposition / movement verb → place (triggers case-insensitive)
+        Regex("""\b(?i:went to|going to|go to|back to|back from|flew to|drove to|drive to|travel(?:l?ed|ling)? to|trip to|visit(?:ed|ing)? to?|arrived (?:in|at)|in|at|near|around|from)\s+([A-Z][A-Za-z]{2,}(?:\s+[A-Z][A-Za-z]+)?)\b"""),
+        // place written before a travel noun ("the Goa trip", "Manali vacation")
+        Regex("""\b([A-Z][A-Za-z]{2,})\s+(?i:trip|vacation|holiday|getaway|visit|tour)\b""")
+    )
+
+    override suspend fun analyze(content: NormalizedContent): List<Evidence> =
+        patterns.asSequence()
+            .flatMap { p -> p.findAll(content.text).map { it.groupValues[1] } }
+            .map { it.trim() }
+            .filter { place -> place.split(" ").none { it.lowercase() in CAPITALIZED_STOPLIST } }
+            .distinctBy { it.lowercase() }
+            .map { place ->
+                Evidence(
+                    kind = EvidenceKind.PLACE,
+                    value = place,
+                    evidenceText = content.text.sentenceContaining(place),
+                    confidence = 0.5f
+                )
+            }
+            .toList()
 }
 
 // ── Specialist: Tasks ─────────────────────────────────────────────────

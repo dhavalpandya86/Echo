@@ -4,6 +4,7 @@ import com.dhaval.echo.data.understanding.KnownEntityAnalyzer
 import com.dhaval.echo.data.understanding.LocalEntityResolver
 import com.dhaval.echo.data.understanding.LocalMoodAnalyzer
 import com.dhaval.echo.data.understanding.LocalPersonAnalyzer
+import com.dhaval.echo.data.understanding.LocalPlaceAnalyzer
 import com.dhaval.echo.data.understanding.LocalProjectAnalyzer
 import com.dhaval.echo.data.understanding.LocalReminderAnalyzer
 import com.dhaval.echo.data.understanding.LocalTaskAnalyzer
@@ -36,6 +37,7 @@ abstract class UnderstandingModule {
 
     @Binds @IntoSet abstract fun personAnalyzer(impl: LocalPersonAnalyzer): MemoryAnalyzer
     @Binds @IntoSet abstract fun projectAnalyzer(impl: LocalProjectAnalyzer): MemoryAnalyzer
+    @Binds @IntoSet abstract fun placeAnalyzer(impl: LocalPlaceAnalyzer): MemoryAnalyzer
     @Binds @IntoSet abstract fun taskAnalyzer(impl: LocalTaskAnalyzer): MemoryAnalyzer
     @Binds @IntoSet abstract fun reminderAnalyzer(impl: LocalReminderAnalyzer): MemoryAnalyzer
     @Binds @IntoSet abstract fun moodAnalyzer(impl: LocalMoodAnalyzer): MemoryAnalyzer
