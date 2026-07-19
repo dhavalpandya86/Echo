@@ -167,7 +167,10 @@ fun EchoNavGraph(
         }
 
         composable<TasksRoute> {
-            TasksScreen(onNavigateBack = { navController.popBackStack() })
+            TasksScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenMemory = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) }
+            )
         }
 
         composable<EntitiesRoute> {

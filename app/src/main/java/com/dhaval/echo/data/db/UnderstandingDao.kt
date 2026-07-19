@@ -256,8 +256,20 @@ interface UnderstandingDao {
     )
     fun getOpenActionables(userId: String): Flow<List<ExtractedItem>>
 
+    /** Completed commitments, most-recently-created first — for the "Done" view. */
+    @Query(
+        """SELECT * FROM extracted_items
+           WHERE userId = :userId AND kind IN ('TASK','REMINDER') AND status = 'DONE'
+           ORDER BY createdAt DESC"""
+    )
+    fun getCompletedActionables(userId: String): Flow<List<ExtractedItem>>
+
     @Query("UPDATE extracted_items SET status = :status WHERE id = :itemId")
     suspend fun updateItemStatus(itemId: String, status: String)
+
+    /** Reschedule a commitment (null clears its due date). */
+    @Query("UPDATE extracted_items SET dueAtMillis = :dueAtMillis WHERE id = :itemId")
+    suspend fun updateItemDue(itemId: String, dueAtMillis: Long?)
 
     // ── Idempotent re-processing ─────────────────────────────────────
 
