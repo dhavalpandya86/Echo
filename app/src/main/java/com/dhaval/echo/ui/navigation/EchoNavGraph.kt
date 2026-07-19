@@ -205,7 +205,8 @@ fun EchoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onNavigateToEntity = { id -> navController.navigate(EntityDetailsRoute(id)) }
             )
         }
 

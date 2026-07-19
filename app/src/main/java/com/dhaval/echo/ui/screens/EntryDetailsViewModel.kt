@@ -40,11 +40,19 @@ class EntryDetailsViewModel @Inject constructor(
     private val collectionRepository: CollectionRepository,
     private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao,
     private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao,
+    private val worldDiscovery: com.dhaval.echo.data.understanding.WorldDiscoveryService,
     private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val entryId: String = checkNotNull(savedStateHandle["entryId"])
+
+    /** The Worlds this memory belongs to, discovered from the graph (Phase C). */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val worlds: StateFlow<List<com.dhaval.echo.data.understanding.DiscoveredWorld>> =
+        understandingDao.getLinkedEntities(entryId)
+            .mapLatest { worldDiscovery.worldsForMemory(entryId) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val dateFormatter = DateTimeFormatter.ofPattern("MMMM d, yyyy • HH:mm", Locale.getDefault())
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)

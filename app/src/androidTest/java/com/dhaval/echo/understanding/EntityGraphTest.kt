@@ -18,6 +18,7 @@ import com.dhaval.echo.data.understanding.RealMemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import com.dhaval.echo.domain.understanding.SourceKind
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -139,6 +140,26 @@ class EntityGraphTest {
             "the World spans both memories",
             2, dao.countMemoriesForEntities(world.entityIds)
         )
+    }
+
+    @Test
+    fun a_memory_maps_to_the_world_its_entities_belong_to() = runBlocking {
+        // Two memories about Raj + Oceanis form a World; each memory belongs to it.
+        understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")
+        understand("m2", "Tomorrow I need to call Raj about the Oceanis packaging.")
+        val dao = db.understandingDao()
+
+        // The mapping WorldDiscoveryService.worldsForMemory performs, minus auth.
+        val memEntityIds = dao.getLinkedEntities("m1").first()
+            .filter { !it.inferred }.map { it.entityId }.toSet()
+        val clusters = com.dhaval.echo.data.understanding.WorldClusterer()
+            .cluster(dao.getActiveEntities(userId), dao.getAllRelationshipsForUser(userId))
+
+        val memoryWorlds = clusters.filter { c -> c.entityIds.any { it in memEntityIds } }
+        assertTrue("the memory belongs to at least one World", memoryWorlds.isNotEmpty())
+        val names = memoryWorlds.first().entityIds
+            .mapNotNull { id -> dao.getEntityById(id)?.name }.toSet()
+        assertTrue("its World holds Raj and Oceanis", names.containsAll(setOf("Raj", "Oceanis")))
     }
 
     @Test

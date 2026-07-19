@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,7 @@ import java.time.format.DateTimeFormatter
 fun EntryDetailsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEntry: (String) -> Unit,
+    onNavigateToEntity: (String) -> Unit = {},
     viewModel: EntryDetailsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
     collectionsViewModel: CollectionsViewModel = hiltViewModel()
@@ -41,6 +43,7 @@ fun EntryDetailsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val collectionsState by collectionsViewModel.uiState.collectAsState()
+    val worlds by viewModel.worlds.collectAsState()
     
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCollectionPicker by remember { mutableStateOf(false) }
@@ -142,6 +145,11 @@ fun EntryDetailsScreen(
                     )
                     
                     Spacer(modifier = Modifier.height(24.dp))
+
+                    if (worlds.isNotEmpty()) {
+                        WorldsSection(worlds = worlds, onWorldClick = { onNavigateToEntity(it.seedEntityId) })
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
 
                     CollectionsSection(
                         collections = uiState.collections,
@@ -571,6 +579,50 @@ private fun CollectionsSection(
                 modifier = Modifier.size(32.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add to Collection", modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+/**
+ * The Worlds this memory belongs to — discovered from the graph, not filed by
+ * hand. Tapping one enters that World (its central entity).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WorldsSection(
+    worlds: List<com.dhaval.echo.data.understanding.DiscoveredWorld>,
+    onWorldClick: (com.dhaval.echo.data.understanding.DiscoveredWorld) -> Unit
+) {
+    Column {
+        Text(
+            text = "Worlds",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "The parts of your life this memory connects to.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            worlds.forEach { world ->
+                AssistChip(
+                    onClick = { onWorldClick(world) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.Public, contentDescription = null,
+                            modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    label = { Text(world.title) }
+                )
             }
         }
     }
