@@ -263,12 +263,20 @@ private fun UnderstandingSection(
     items: List<com.dhaval.echo.data.db.ExtractedItem>
 ) {
     val people = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.PERSON }
-    val topics = entities.filter { it.type != com.dhaval.echo.data.db.EntityType.PERSON }
+    val topics = entities.filter {
+        it.type != com.dhaval.echo.data.db.EntityType.PERSON &&
+            it.type != com.dhaval.echo.data.db.EntityType.FEELING
+    }
     val tasks = items.filter {
         it.kind == com.dhaval.echo.data.db.ItemKind.TASK ||
             it.kind == com.dhaval.echo.data.db.ItemKind.REMINDER
     }
-    val moods = items.filter { it.kind == com.dhaval.echo.data.db.ItemKind.MOOD }
+    // Feelings are entities now (Phase B); legacy MOOD items still render for
+    // memories captured before the graduation.
+    val moods = (
+        entities.filter { it.type == com.dhaval.echo.data.db.EntityType.FEELING }.map { it.name } +
+            items.filter { it.kind == com.dhaval.echo.data.db.ItemKind.MOOD }.map { it.value }
+        ).distinct()
 
     Column {
         if (people.isNotEmpty()) {
@@ -334,7 +342,7 @@ private fun UnderstandingSection(
                             shape = CircleShape
                         ) {
                             Text(
-                                text = mood.value,
+                                text = mood,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)

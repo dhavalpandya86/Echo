@@ -120,6 +120,18 @@ class EntityGraphTest {
     }
 
     @Test
+    fun a_feeling_joins_the_graph_and_connects_to_what_co_occurs() = runBlocking {
+        // Phase B: feelings are entities, so "what was I doing when I felt excited?"
+        // is answerable by graph traversal.
+        understand("m1", "I feel really excited about the Oceanis launch!")
+        val dao = db.understandingDao()
+
+        val excited = dao.getEntitiesByType(userId, EntityType.FEELING).first { it.name == "Excited" }
+        val neighbours = dao.getRelatedEntitiesOnce(excited.id).map { it.name }.toSet()
+        assertTrue("the feeling connects to Oceanis", neighbours.contains("Oceanis"))
+    }
+
+    @Test
     fun edges_are_deduplicated_and_traversable_across_a_hub() = runBlocking {
         // Oceanis is a hub touched with Raj, then with Meera.
         understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")

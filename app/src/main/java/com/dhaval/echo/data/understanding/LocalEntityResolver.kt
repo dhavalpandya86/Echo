@@ -41,7 +41,9 @@ class LocalEntityResolver @Inject constructor(
         EvidenceKind.TOPIC to EntityType.TOPIC,
         EvidenceKind.PLACE to EntityType.PLACE,
         EvidenceKind.ORG to EntityType.ORG,
-        EvidenceKind.PRODUCT to EntityType.PRODUCT
+        EvidenceKind.PRODUCT to EntityType.PRODUCT,
+        // Phase B: a feeling is a recurring identity, so it joins the graph.
+        EvidenceKind.MOOD to EntityType.FEELING
     )
 
     private val kindToRelation = mapOf(
@@ -50,13 +52,13 @@ class LocalEntityResolver @Inject constructor(
         EvidenceKind.TOPIC to LinkRelation.DISCUSSES,
         EvidenceKind.PLACE to LinkRelation.LOCATED_AT,
         EvidenceKind.ORG to LinkRelation.INVOLVES,
-        EvidenceKind.PRODUCT to LinkRelation.INVOLVES
+        EvidenceKind.PRODUCT to LinkRelation.INVOLVES,
+        EvidenceKind.MOOD to LinkRelation.FELT
     )
 
     private val kindToItem = mapOf(
         EvidenceKind.TASK to ItemKind.TASK,
         EvidenceKind.REMINDER to ItemKind.REMINDER,
-        EvidenceKind.MOOD to ItemKind.MOOD,
         EvidenceKind.DECISION to ItemKind.DECISION
     )
 

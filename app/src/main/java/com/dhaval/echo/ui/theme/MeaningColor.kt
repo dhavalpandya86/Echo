@@ -26,6 +26,7 @@ enum class Meaning(val color: Color, val label: String) {
         fun forEntityType(type: String): Meaning = when (type.uppercase()) {
             "PERSON" -> People
             "PLACE" -> Places
+            "FEELING" -> Health
             "PROJECT", "TOPIC", "PRODUCT", "ORG" -> Ideas
             else -> Understanding
         }

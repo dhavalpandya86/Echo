@@ -51,6 +51,7 @@ class EntitiesViewModel @Inject constructor(
             EntityType.PROJECT to "Projects",
             EntityType.TOPIC to "Topics",
             EntityType.PLACE to "Places",
+            EntityType.FEELING to "Feelings",
             EntityType.ORG to "Organizations",
             EntityType.PRODUCT to "Products"
         )

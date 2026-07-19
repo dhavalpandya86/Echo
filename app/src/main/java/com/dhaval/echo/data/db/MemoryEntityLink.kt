@@ -54,4 +54,5 @@ object LinkRelation {
     const val DISCUSSES = "DISCUSSES"     // topics
     const val LOCATED_AT = "LOCATED_AT"   // places
     const val INVOLVES = "INVOLVES"       // orgs / products / other
+    const val FELT = "FELT"               // feelings
 }

@@ -69,4 +69,12 @@ object EntityType {
     const val ORG = "ORG"
     const val TOPIC = "TOPIC"
     const val PRODUCT = "PRODUCT"
+
+    /**
+     * A feeling the user expressed ("Excited", "Anxious"). Graduated from a
+     * per-memory item to a first-class node (Phase B) so it recurs as one
+     * identity and joins the graph — letting Echo see what a feeling co-occurs
+     * with ("what was I doing the times I felt anxious?").
+     */
+    const val FEELING = "FEELING"
 }

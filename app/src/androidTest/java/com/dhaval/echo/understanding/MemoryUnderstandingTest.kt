@@ -178,16 +178,22 @@ class MemoryUnderstandingTest {
     }
 
     @Test
-    fun mood_is_detected_when_stated_and_absent_when_not() = runBlocking {
+    fun feeling_is_detected_as_an_entity_when_stated_and_absent_when_not() = runBlocking {
+        // Phase B: a stated feeling becomes a first-class FEELING entity, linked
+        // to the memory so it can join the graph — not a per-memory item.
         understand("m1", "I feel really excited about the new design direction!")
-        val withMood = db.understandingDao().getItemsForMemory("m1").first()
-        assertEquals("Excited", withMood.firstOrNull { it.kind == ItemKind.MOOD }?.value)
+        val dao = db.understandingDao()
+        val feelings = dao.getEntitiesByType(userId, EntityType.FEELING)
+        assertEquals("Excited", feelings.firstOrNull()?.name)
+        assertTrue(
+            "the feeling links to its memory",
+            dao.getLinkedEntities("m1").first().any { it.type == EntityType.FEELING && it.name == "Excited" }
+        )
 
         understand("m2", "Bought three bags of rice for the shipment.")
-        val withoutMood = db.understandingDao().getItemsForMemory("m2").first()
         assertTrue(
-            "no mood signal must mean no mood claim — never a fabricated Neutral",
-            withoutMood.none { it.kind == ItemKind.MOOD }
+            "no mood signal must mean no feeling — never a fabricated Neutral",
+            dao.getLinkedEntities("m2").first().none { it.type == EntityType.FEELING }
         )
     }
 }
