@@ -1,12 +1,11 @@
 package com.dhaval.echo.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.Today
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.ui.graphics.vector.ImageVector
 import kotlinx.serialization.Serializable
 
@@ -91,10 +90,9 @@ enum class TopLevelDestination(
     val icon: ImageVector,
     val label: String
 ) {
-    Today(HomeRoute, Icons.Default.WbSunny, "Today"),
-    Story(TimelineRoute, Icons.Default.AutoStories, "Story"),
-    Worlds(CollectionsRoute, Icons.Default.Public, "Worlds"),
-    Remember(SearchRoute, Icons.Default.Search, "Remember"),
-    Reflect(ConversationRoute, Icons.Default.AutoAwesome, "Reflect"),
-    You(SettingsRoute, Icons.Default.Person, "You")
+    Today(HomeRoute, Icons.Rounded.Today, "Today"),
+    Story(TimelineRoute, Icons.Rounded.AutoStories, "Story"),
+    Worlds(CollectionsRoute, Icons.Rounded.Public, "Worlds"),
+    Reflect(ConversationRoute, Icons.Rounded.SelfImprovement, "Reflect"),
+    Remember(SearchRoute, Icons.Rounded.Visibility, "Remember")
 }

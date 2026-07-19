@@ -194,7 +194,8 @@ fun EchoNavGraph(
             TimelineScreen(
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
 
@@ -211,13 +212,15 @@ fun EchoNavGraph(
             SearchScreen(
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
 
         composable<SettingsRoute> {
             SettingsScreen(
-                onNavigateToAiSettings = { navController.navigate(AiSettingsRoute) }
+                onNavigateToAiSettings = { navController.navigate(AiSettingsRoute) },
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -232,7 +235,8 @@ fun EchoNavGraph(
                 onCollectionClick = { id ->
                     navController.navigate(CollectionDetailsRoute(id))
                 },
-                onNavigateToEntities = { navController.navigate(EntitiesRoute) }
+                onNavigateToEntities = { navController.navigate(EntitiesRoute) },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
 
@@ -240,7 +244,8 @@ fun EchoNavGraph(
             ConversationScreen(
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
 

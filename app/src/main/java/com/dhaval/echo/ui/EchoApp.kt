@@ -1,8 +1,15 @@
 package com.dhaval.echo.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -100,12 +107,22 @@ private fun EchoBottomBar(
                     )
                 },
                 label = {
-                    Text(
-                        text = destination.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1
-                    )
+                    // Active state: primary tint + a small 4px dot below the label (per design).
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        androidx.compose.foundation.layout.Box(
+                            Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        )
+                    }
                 },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,

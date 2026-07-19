@@ -22,13 +22,14 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun TimelineScreen(
     onEntryClick: (String) -> Unit,
+    onProfileClick: () -> Unit = {},
     viewModel: TimelineViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
-            EchoTopBar(title = "Story")
+            EchoTopBar(title = "Story", onProfileClick = onProfileClick)
         }
     ) { innerPadding ->
         Column(

@@ -20,6 +20,7 @@ import com.dhaval.echo.ui.components.*
 fun CollectionsScreen(
     onCollectionClick: (String) -> Unit,
     onNavigateToEntities: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     viewModel: CollectionsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -29,6 +30,7 @@ fun CollectionsScreen(
         topBar = {
             EchoTopBar(
                 title = "Worlds",
+                onProfileClick = onProfileClick,
                 actions = {
                     // People, places, projects & topics Echo recognizes live in Worlds.
                     IconButton(onClick = onNavigateToEntities) {

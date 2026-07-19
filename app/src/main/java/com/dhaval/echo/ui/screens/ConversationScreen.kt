@@ -32,7 +32,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ConversationScreen(
     viewModel: ConversationViewModel = hiltViewModel(),
-    onNavigateToEntry: (String) -> Unit
+    onNavigateToEntry: (String) -> Unit,
+    onProfileClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberLazyListState()
@@ -50,8 +51,9 @@ fun ConversationScreen(
                 title = { Text("Reflect", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { viewModel.startNewConversation() }) {
-                        Icon(Icons.Default.Add, contentDescription = "New Chat")
+                        Icon(Icons.Default.Add, contentDescription = "New reflection")
                     }
+                    com.dhaval.echo.ui.components.EchoProfileAvatar(onClick = onProfileClick)
                 }
             )
         }

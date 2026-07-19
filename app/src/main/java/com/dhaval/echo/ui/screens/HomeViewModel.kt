@@ -26,8 +26,18 @@ class HomeViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
     private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao,
-    private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao
+    private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao,
+    private val weatherRepository: com.dhaval.echo.domain.weather.WeatherRepository
 ) : ViewModel() {
+
+    private val _weather = kotlinx.coroutines.flow.MutableStateFlow<com.dhaval.echo.domain.weather.Weather?>(null)
+    /** Current local weather for the greeting; null until loaded / if unavailable. */
+    val weather: StateFlow<com.dhaval.echo.domain.weather.Weather?> = _weather
+
+    /** Called by the screen once location permission is available. */
+    fun loadWeather() {
+        viewModelScope.launch { _weather.value = weatherRepository.currentWeather() }
+    }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<HomeUiState> = authRepository.currentUserId.flatMapLatest { userId ->

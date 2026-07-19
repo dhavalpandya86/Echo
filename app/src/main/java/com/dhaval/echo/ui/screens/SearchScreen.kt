@@ -23,13 +23,14 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SearchScreen(
     onEntryClick: (String) -> Unit,
+    onProfileClick: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
-            EchoTopBar(title = "Remember")
+            EchoTopBar(title = "Remember", onProfileClick = onProfileClick)
         }
     ) { innerPadding ->
         Column(

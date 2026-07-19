@@ -21,6 +21,7 @@ import com.dhaval.echo.ui.components.EchoTopBar
 @Composable
 fun SettingsScreen(
     onNavigateToAiSettings: () -> Unit = {},
+    onNavigateBack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -28,7 +29,7 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            EchoTopBar(title = "You")
+            EchoTopBar(title = "You", onBackClick = onNavigateBack)
         }
     ) { innerPadding ->
         Column(
