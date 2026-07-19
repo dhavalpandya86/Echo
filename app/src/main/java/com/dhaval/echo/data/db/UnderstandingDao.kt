@@ -25,6 +25,15 @@ data class CoOccurrence(
     val shared: Int
 )
 
+/** A neighbour in the entity graph: the connected entity + how strong the edge is. */
+data class RelatedEntityView(
+    val entityId: String,
+    val name: String,
+    val type: String,
+    val weight: Int,
+    val confidence: Float
+)
+
 /** A connection Echo inferred (Stage-6) — a memory linked to an entity it didn't name. */
 data class InferredConnectionView(
     val memoryId: String,
@@ -105,6 +114,48 @@ interface UnderstandingDao {
         excludeMemoryId: String,
         minShared: Int
     ): List<CoOccurrence>
+
+    // ── Entity Graph edges (Phase A — the weighted node↔node graph) ──
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRelationships(edges: List<EntityRelationship>)
+
+    /** Drop every edge originating at an entity, so it can be rebuilt idempotently. */
+    @Query("DELETE FROM entity_relationships WHERE sourceEntityId = :entityId")
+    suspend fun deleteRelationshipsFrom(entityId: String)
+
+    /**
+     * Replace all outgoing edges of one entity in a single transaction. Called by
+     * the resolver after a memory touches this entity: its neighbourhood is small,
+     * so a full delete+reinsert keeps weights exactly in sync with co-occurrence.
+     */
+    @Transaction
+    suspend fun rebuildRelationshipsFrom(entityId: String, edges: List<EntityRelationship>) {
+        deleteRelationshipsFrom(entityId)
+        if (edges.isNotEmpty()) insertRelationships(edges)
+    }
+
+    /** The entities connected to [entityId], strongest edge first — for related-to UI. */
+    @Query(
+        """SELECT r.targetEntityId AS entityId, e.name AS name, e.type AS type,
+                  r.weight AS weight, r.confidence AS confidence
+           FROM entity_relationships r
+           JOIN entities e ON e.id = r.targetEntityId
+           WHERE r.sourceEntityId = :entityId
+           ORDER BY r.weight DESC, e.name ASC"""
+    )
+    fun getRelatedEntities(entityId: String): Flow<List<RelatedEntityView>>
+
+    /** Same as [getRelatedEntities], one-shot — for traversal/tests/clustering. */
+    @Query(
+        """SELECT r.targetEntityId AS entityId, e.name AS name, e.type AS type,
+                  r.weight AS weight, r.confidence AS confidence
+           FROM entity_relationships r
+           JOIN entities e ON e.id = r.targetEntityId
+           WHERE r.sourceEntityId = :entityId
+           ORDER BY r.weight DESC, e.name ASC"""
+    )
+    suspend fun getRelatedEntitiesOnce(entityId: String): List<RelatedEntityView>
 
     // ── Memory Graph (links) ─────────────────────────────────────────
 

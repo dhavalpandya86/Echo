@@ -2,6 +2,8 @@ package com.dhaval.echo.data.understanding
 
 import android.util.Log
 import com.dhaval.echo.data.db.EntityNode
+import com.dhaval.echo.data.db.EntityRelation
+import com.dhaval.echo.data.db.EntityRelationship
 import com.dhaval.echo.data.db.EntityType
 import com.dhaval.echo.data.db.ExtractedItem
 import com.dhaval.echo.data.db.ItemKind
@@ -130,6 +132,12 @@ class LocalEntityResolver @Inject constructor(
             dao.refreshEntityStats(it, now)
         }
 
+        // Phase A: keep the weighted entity↔entity graph in sync. This memory may
+        // have created new co-occurrences among the entities it named, so rebuild
+        // their edges (and their neighbours', to keep the symmetric edge weights
+        // exact). Bounded by the local neighbourhood — no full-graph scan.
+        rebuildEntityGraph(content.userId, touchedEntityIds, now)
+
         Log.i(
             TAG,
             "Resolved memory ${content.memoryId}: ${links.size} stated + " +
@@ -169,6 +177,50 @@ class LocalEntityResolver @Inject constructor(
             }
         }
         return inferred
+    }
+
+    /**
+     * Rebuild the weighted edges of every entity in the neighbourhood affected by
+     * this memory. For each such entity we read its full stated co-occurrence
+     * (every other entity it shares ≥1 memory with, with the shared count as the
+     * edge weight) and replace its outgoing edges. Because co-occurrence is
+     * symmetric, we rebuild both the touched entities and their direct neighbours,
+     * so source→target and target→source weights stay identical.
+     */
+    private suspend fun rebuildEntityGraph(
+        userId: String,
+        touchedEntityIds: Set<String>,
+        now: LocalDateTime
+    ) {
+        if (touchedEntityIds.isEmpty()) return
+
+        // The touched entities plus everyone they now co-occur with — the only
+        // entities whose edges could have changed.
+        val toRebuild = touchedEntityIds.toMutableSet()
+        for (eid in touchedEntityIds) {
+            dao.coOccurringEntities(eid, excludeMemoryId = "", minShared = 1)
+                .forEach { toRebuild += it.entityId }
+        }
+
+        for (eid in toRebuild) {
+            val edges = dao.coOccurringEntities(eid, excludeMemoryId = "", minShared = 1)
+                .map { co ->
+                    EntityRelationship(
+                        id = UUID.randomUUID().toString(),
+                        userId = userId,
+                        sourceEntityId = eid,
+                        targetEntityId = co.entityId,
+                        relation = EntityRelation.RELATED_TO,
+                        weight = co.shared,
+                        confidence = (0.4f + 0.1f * co.shared).coerceAtMost(1f),
+                        evidence = "Co-occurs across ${co.shared} " +
+                            (if (co.shared == 1) "memory" else "memories"),
+                        firstSeenAt = now,
+                        lastSeenAt = now
+                    )
+                }
+            dao.rebuildRelationshipsFrom(eid, edges)
+        }
     }
 
     private suspend fun findExisting(userId: String, type: String, name: String): EntityNode? {

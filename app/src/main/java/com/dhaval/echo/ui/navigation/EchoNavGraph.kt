@@ -180,7 +180,8 @@ fun EchoNavGraph(
         composable<EntityDetailsRoute> {
             EntityDetailScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onEntryClick = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) }
+                onEntryClick = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) }
             )
         }
 

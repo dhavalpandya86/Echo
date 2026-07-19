@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import com.dhaval.echo.data.db.DiaryEntry
 import com.dhaval.echo.data.db.EntityNode
+import com.dhaval.echo.data.db.RelatedEntityView
 import com.dhaval.echo.data.db.UnderstandingDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,6 +17,7 @@ import javax.inject.Inject
 data class EntityDetailUiState(
     val entity: EntityNode? = null,
     val memories: List<DiaryEntry> = emptyList(),
+    val related: List<RelatedEntityView> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -30,8 +32,14 @@ class EntityDetailViewModel @Inject constructor(
 
     val uiState: StateFlow<EntityDetailUiState> = combine(
         understandingDao.observeEntity(entityId),
-        understandingDao.getMemoriesForEntity(entityId)
-    ) { entity, memories ->
-        EntityDetailUiState(entity = entity, memories = memories, isLoading = false)
+        understandingDao.getMemoriesForEntity(entityId),
+        understandingDao.getRelatedEntities(entityId)
+    ) { entity, memories, related ->
+        EntityDetailUiState(
+            entity = entity,
+            memories = memories,
+            related = related,
+            isLoading = false
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EntityDetailUiState())
 }

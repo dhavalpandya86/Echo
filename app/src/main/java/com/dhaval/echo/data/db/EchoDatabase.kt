@@ -26,9 +26,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MessageEntity::class,
         EntityNode::class,
         MemoryEntityLink::class,
-        ExtractedItem::class
+        ExtractedItem::class,
+        EntityRelationship::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -43,6 +44,30 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Phase A (spec 07 — Knowledge Graph): the weighted entity↔entity edge
+         * table. Additive; existing data is untouched and edges are (re)built by
+         * the resolver as memories are processed.
+         */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `entity_relationships` (
+                        `id` TEXT NOT NULL, `userId` TEXT NOT NULL,
+                        `sourceEntityId` TEXT NOT NULL, `targetEntityId` TEXT NOT NULL,
+                        `relation` TEXT NOT NULL, `weight` INTEGER NOT NULL,
+                        `confidence` REAL NOT NULL, `evidence` TEXT,
+                        `firstSeenAt` TEXT NOT NULL, `lastSeenAt` TEXT NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`sourceEntityId`) REFERENCES `entities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`targetEntityId`) REFERENCES `entities`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"""
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_entity_relationships_sourceEntityId_targetEntityId` ON `entity_relationships` (`sourceEntityId`, `targetEntityId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_entity_relationships_targetEntityId` ON `entity_relationships` (`targetEntityId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_entity_relationships_userId` ON `entity_relationships` (`userId`)")
+            }
+        }
 
         /**
          * Memory Understanding Engine foundation (MU-0): the Entity Graph

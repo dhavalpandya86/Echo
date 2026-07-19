@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,10 +21,12 @@ import com.dhaval.echo.ui.components.EchoEmptyState
 import com.dhaval.echo.ui.components.EchoTopBar
 import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EntityDetailScreen(
     onNavigateBack: () -> Unit,
     onEntryClick: (String) -> Unit,
+    onEntityClick: (String) -> Unit = {},
     viewModel: EntityDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -63,9 +66,43 @@ fun EntityDetailScreen(
                         )
                     }
                 }
+                if (state.related.isNotEmpty()) {
+                    item(key = "connected") {
+                        ConnectedSection(state.related, onEntityClick = onEntityClick)
+                    }
+                }
                 items(state.memories, key = { it.id }) { entry ->
                     MemoryRow(entry = entry, onClick = { onEntryClick(entry.id) })
                 }
+            }
+        }
+    }
+}
+
+/** The entity graph, made visible: who/what this entity is connected to. */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ConnectedSection(
+    related: List<com.dhaval.echo.data.db.RelatedEntityView>,
+    onEntityClick: (String) -> Unit
+) {
+    Column {
+        Text(
+            text = "Connected",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            related.forEach { r ->
+                AssistChip(
+                    onClick = { onEntityClick(r.entityId) },
+                    label = {
+                        val times = if (r.weight == 1) "1 memory" else "${r.weight} memories"
+                        Text("${r.name} · $times")
+                    }
+                )
             }
         }
     }
