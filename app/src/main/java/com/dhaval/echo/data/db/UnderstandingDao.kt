@@ -182,6 +182,15 @@ interface UnderstandingDao {
     )
     suspend fun countMemoriesForEntities(entityIds: List<String>): Int
 
+    /** The memories a set of entities spans, newest first — for a World page. */
+    @Query(
+        """SELECT DISTINCT d.* FROM diary_entries d
+           JOIN memory_entity_links l ON l.memoryId = d.id
+           WHERE l.entityId IN (:entityIds) AND l.inferred = 0
+           ORDER BY d.createdAt DESC"""
+    )
+    suspend fun getMemoriesForEntities(entityIds: List<String>): List<DiaryEntry>
+
     // ── Corrections loop (Phase B) ───────────────────────────────────
 
     @Query("UPDATE entities SET archived = :archived WHERE id = :entityId")

@@ -78,6 +78,10 @@ object EntitiesRoute
 @Serializable
 data class EntityDetailsRoute(val entityId: String)
 
+/** A discovered World's detail page, anchored by its seed entity. */
+@Serializable
+data class WorldDetailsRoute(val seedEntityId: String)
+
 /**
  * Echo's five states of mind (+ You) — the only navigation the user sees.
  * Labels are human, never software words (Constitution §1). Routes keep their

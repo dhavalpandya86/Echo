@@ -1,9 +1,19 @@
 package com.dhaval.echo.data.understanding
 
+import com.dhaval.echo.data.db.DiaryEntry
+import com.dhaval.echo.data.db.EntityNode
 import com.dhaval.echo.data.db.UnderstandingDao
 import com.dhaval.echo.domain.auth.AuthRepository
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
+
+/** The full contents of one World — its entities and the memories they span. */
+data class WorldDetail(
+    val seedEntityId: String,
+    val title: String,
+    val entities: List<EntityNode>,
+    val memories: List<DiaryEntry>
+)
 
 /** A World surfaced to the user: a cluster of entities and the memories it spans. */
 data class DiscoveredWorld(
@@ -60,6 +70,28 @@ class WorldDiscoveryService @Inject constructor(
         return clusterer.cluster(entities, edges)
             .filter { c -> c.entityIds.any { it in memoryEntityIds } }
             .map { c -> worldOf(c, dao.countMemoriesForEntities(c.entityIds)) }
+    }
+
+    /**
+     * The full contents of one World (its detail page): every entity in the
+     * cluster the given seed belongs to, plus the memories they span. Returns null
+     * if the seed no longer anchors a cluster (e.g. the graph reshaped).
+     */
+    suspend fun worldDetail(seedEntityId: String): WorldDetail? {
+        val userId = authRepository.getCurrentUser()?.id ?: return null
+        val entities = dao.getActiveEntities(userId)
+        if (entities.size < 2) return null
+        val edges = dao.getAllRelationshipsForUser(userId)
+
+        val cluster = clusterer.cluster(entities, edges)
+            .firstOrNull { seedEntityId in it.entityIds } ?: return null
+        val members = entities.filter { it.id in cluster.entityIds }
+        return WorldDetail(
+            seedEntityId = seedEntityId,
+            title = cluster.title,
+            entities = members,
+            memories = dao.getMemoriesForEntities(cluster.entityIds)
+        )
     }
 
     private fun worldOf(c: EntityCluster, memories: Int) = DiscoveredWorld(

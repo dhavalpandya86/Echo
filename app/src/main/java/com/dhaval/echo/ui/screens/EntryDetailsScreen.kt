@@ -36,6 +36,7 @@ fun EntryDetailsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEntry: (String) -> Unit,
     onNavigateToEntity: (String) -> Unit = {},
+    onNavigateToWorld: (String) -> Unit = {},
     viewModel: EntryDetailsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
     collectionsViewModel: CollectionsViewModel = hiltViewModel()
@@ -147,7 +148,7 @@ fun EntryDetailsScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     if (worlds.isNotEmpty()) {
-                        WorldsSection(worlds = worlds, onWorldClick = { onNavigateToEntity(it.seedEntityId) })
+                        WorldsSection(worlds = worlds, onWorldClick = { onNavigateToWorld(it.seedEntityId) })
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 

@@ -180,6 +180,14 @@ fun EchoNavGraph(
             )
         }
 
+        composable<WorldDetailsRoute> {
+            WorldDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) },
+                onEntryClick = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) }
+            )
+        }
+
         composable<EntityDetailsRoute> {
             EntityDetailScreen(
                 onNavigateBack = { navController.popBackStack() },
@@ -209,7 +217,8 @@ fun EchoNavGraph(
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 },
-                onNavigateToEntity = { id -> navController.navigate(EntityDetailsRoute(id)) }
+                onNavigateToEntity = { id -> navController.navigate(EntityDetailsRoute(id)) },
+                onNavigateToWorld = { id -> navController.navigate(WorldDetailsRoute(id)) }
             )
         }
 
@@ -241,7 +250,7 @@ fun EchoNavGraph(
                     navController.navigate(CollectionDetailsRoute(id))
                 },
                 onNavigateToEntities = { navController.navigate(EntitiesRoute) },
-                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) },
+                onEntityClick = { id -> navController.navigate(WorldDetailsRoute(id)) },
                 onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
