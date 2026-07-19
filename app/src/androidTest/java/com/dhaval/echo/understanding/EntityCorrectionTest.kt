@@ -6,8 +6,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.dhaval.echo.data.db.DiaryEntry
 import com.dhaval.echo.data.db.EchoDatabase
 import com.dhaval.echo.data.db.EntityType
-import com.dhaval.echo.data.understanding.KnownEntityAnalyzer
+import com.dhaval.echo.data.understanding.EntityCorrectionService
 import com.dhaval.echo.data.understanding.EntityGraphMaintainer
+import com.dhaval.echo.data.understanding.KnownEntityAnalyzer
 import com.dhaval.echo.data.understanding.LocalEntityResolver
 import com.dhaval.echo.data.understanding.LocalMoodAnalyzer
 import com.dhaval.echo.data.understanding.LocalPersonAnalyzer
@@ -18,9 +19,11 @@ import com.dhaval.echo.data.understanding.RealMemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import com.dhaval.echo.domain.understanding.SourceKind
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -28,18 +31,15 @@ import org.junit.runner.RunWith
 import java.time.LocalDateTime
 
 /**
- * Phase A acceptance: the weighted entity↔entity graph.
- *
- * When two entities keep showing up in the same memories, an edge forms between
- * them whose weight is the number of shared memories — and the edge is symmetric
- * (Raj→Oceanis and Oceanis→Raj carry the same weight). This is the traversable
- * graph the whole Experience layer stands on.
+ * Phase B acceptance: the corrections loop. The user has the final say — they can
+ * rename, alias, merge, and archive entities, and the graph and counts stay right.
  */
 @RunWith(AndroidJUnit4::class)
-class EntityGraphTest {
+class EntityCorrectionTest {
 
     private lateinit var db: EchoDatabase
     private lateinit var service: RealMemoryUnderstandingService
+    private lateinit var corrections: EntityCorrectionService
 
     private val userId = "test_user"
     private val capturedAt: LocalDateTime = LocalDateTime.of(2026, 7, 17, 22, 0)
@@ -52,6 +52,7 @@ class EntityGraphTest {
             .build()
 
         val dao = db.understandingDao()
+        val maintainer = EntityGraphMaintainer(dao)
         val localAnalyzers = listOf(
             LocalPersonAnalyzer(),
             LocalProjectAnalyzer(),
@@ -62,8 +63,9 @@ class EntityGraphTest {
         )
         service = RealMemoryUnderstandingService(
             analyzerProvider = MemoryAnalyzerProvider { localAnalyzers },
-            resolver = LocalEntityResolver(dao, EntityGraphMaintainer(dao))
+            resolver = LocalEntityResolver(dao, maintainer)
         )
+        corrections = EntityCorrectionService(dao, maintainer)
     }
 
     @After
@@ -86,56 +88,65 @@ class EntityGraphTest {
     }
 
     @Test
-    fun co_occurrence_forms_a_symmetric_weighted_edge() = runBlocking {
-        // Raj and Oceanis co-occur in one memory → an edge of weight 1 each way.
+    fun rename_keeps_the_old_name_as_an_alias() = runBlocking {
         understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")
         val dao = db.understandingDao()
-
         val raj = dao.getEntitiesByType(userId, EntityType.PERSON).first { it.name == "Raj" }
-        val oceanis = dao.getEntitiesByType(userId, EntityType.PROJECT).first { it.name == "Oceanis" }
 
-        val fromRaj = dao.getRelatedEntitiesOnce(raj.id)
-        val fromOceanis = dao.getRelatedEntitiesOnce(oceanis.id)
+        corrections.rename(raj.id, "Rajesh")
 
-        assertEquals("Raj should connect to exactly one entity", 1, fromRaj.size)
-        assertEquals(oceanis.id, fromRaj.first().entityId)
-        assertEquals("edge weight is shared-memory count", 1, fromRaj.first().weight)
-
-        assertEquals("the edge is symmetric", 1, fromOceanis.size)
-        assertEquals(raj.id, fromOceanis.first().entityId)
-        assertEquals(1, fromOceanis.first().weight)
+        val renamed = dao.getEntityById(raj.id)!!
+        assertEquals("Rajesh", renamed.name)
+        assertEquals("rajesh", renamed.normalizedName)
+        assertTrue("old name kept as alias", renamed.aliases.contains("Raj"))
     }
 
     @Test
-    fun repeated_co_occurrence_increases_the_edge_weight() = runBlocking {
+    fun archived_entities_drop_out_of_browsing_but_still_resolve() = runBlocking {
         understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")
-        understand("m2", "Met Raj to review the Oceanis packaging.")
         val dao = db.understandingDao()
-
         val raj = dao.getEntitiesByType(userId, EntityType.PERSON).first { it.name == "Raj" }
-        val related = dao.getRelatedEntitiesOnce(raj.id)
 
-        assertEquals("still one neighbour, not a duplicate edge", 1, related.size)
-        assertEquals("two shared memories → weight 2", 2, related.first().weight)
-    }
+        corrections.setArchived(raj.id, true)
 
-    @Test
-    fun edges_are_deduplicated_and_traversable_across_a_hub() = runBlocking {
-        // Oceanis is a hub touched with Raj, then with Meera.
-        understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")
-        understand("m2", "Tomorrow I need to call Meera about the Oceanis packaging.")
-        val dao = db.understandingDao()
-
-        val oceanis = dao.getEntitiesByType(userId, EntityType.PROJECT).first { it.name == "Oceanis" }
-        val neighbours = dao.getRelatedEntitiesOnce(oceanis.id).map { it.name }.toSet()
-
-        assertTrue("Oceanis connects to Raj", neighbours.contains("Raj"))
-        assertTrue("Oceanis connects to Meera", neighbours.contains("Meera"))
-        // Raj and Meera never shared a memory → no direct edge between them.
-        val raj = dao.getEntitiesByType(userId, EntityType.PERSON).first { it.name == "Raj" }
         assertTrue(
-            "Raj and Meera don't co-occur, so no direct edge",
-            dao.getRelatedEntitiesOnce(raj.id).none { it.name == "Meera" }
+            "archived entity is hidden from the browser",
+            dao.getAllEntities(userId).first().none { it.id == raj.id }
         )
+        // Re-mentioning must not spawn a duplicate — resolution still finds it.
+        understand("m2", "Had coffee with Raj again.")
+        assertEquals(
+            "still exactly one Raj",
+            1, dao.getEntitiesByType(userId, EntityType.PERSON).count { it.name == "Raj" }
+        )
+    }
+
+    @Test
+    fun merge_repoints_memories_and_rebuilds_the_graph() = runBlocking {
+        // Echo mis-split one person into two: "Raj" and "Rajesh".
+        understand("m1", "Tomorrow I need to call Raj about the Oceanis logo.")
+        understand("m2", "Tomorrow I need to call Rajesh about the Oceanis packaging.")
+        val dao = db.understandingDao()
+
+        val raj = dao.getEntitiesByType(userId, EntityType.PERSON).first { it.name == "Raj" }
+        val rajesh = dao.getEntitiesByType(userId, EntityType.PERSON).first { it.name == "Rajesh" }
+        val oceanis = dao.getEntitiesByType(userId, EntityType.PROJECT).first { it.name == "Oceanis" }
+
+        // Before merge: Oceanis links to two separate people, each edge weight 1.
+        assertEquals(2, dao.getRelatedEntitiesOnce(oceanis.id).count())
+
+        corrections.merge(sourceId = rajesh.id, targetId = raj.id)
+
+        // Rajesh is gone; Raj absorbed the alias and both memories.
+        assertNull("source entity deleted", dao.getEntityById(rajesh.id))
+        val survivor = dao.getEntityById(raj.id)!!
+        assertTrue("source name folded into aliases", survivor.aliases.contains("Rajesh"))
+        assertEquals("Raj now spans both memories", 2, survivor.memoryCount)
+
+        // Graph healed: Oceanis has ONE neighbour (Raj) at weight 2.
+        val oceanisNeighbours = dao.getRelatedEntitiesOnce(oceanis.id)
+        assertEquals("one merged neighbour, not two", 1, oceanisNeighbours.size)
+        assertEquals(raj.id, oceanisNeighbours.first().entityId)
+        assertEquals("weight is the two shared memories", 2, oceanisNeighbours.first().weight)
     }
 }

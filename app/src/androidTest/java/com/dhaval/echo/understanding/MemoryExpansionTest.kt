@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dhaval.echo.data.db.DiaryEntry
 import com.dhaval.echo.data.db.EchoDatabase
+import com.dhaval.echo.data.understanding.EntityGraphMaintainer
 import com.dhaval.echo.data.understanding.LocalEntityResolver
 import com.dhaval.echo.domain.understanding.Evidence
 import com.dhaval.echo.domain.understanding.EvidenceKind
@@ -38,7 +39,7 @@ class MemoryExpansionTest {
     @Before fun setUp() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         db = Room.inMemoryDatabaseBuilder(ctx, EchoDatabase::class.java).allowMainThreadQueries().build()
-        resolver = LocalEntityResolver(db.understandingDao())
+        resolver = LocalEntityResolver(db.understandingDao(), EntityGraphMaintainer(db.understandingDao()))
     }
 
     @After fun tearDown() = db.close()

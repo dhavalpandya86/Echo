@@ -36,7 +36,13 @@ data class EntityNode(
     /** Denormalized count of distinct memories linking here. */
     val memoryCount: Int = 0,
     /** e5 vector of the name for fuzzy resolution (MU-4). */
-    val embedding: FloatArray? = null
+    val embedding: FloatArray? = null,
+    /**
+     * User archived this entity (corrections loop). Archived entities are hidden
+     * from browsing and the graph but still resolve, so re-mentioning one doesn't
+     * silently spawn a duplicate. The user, not Echo, decides an entity is noise.
+     */
+    val archived: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

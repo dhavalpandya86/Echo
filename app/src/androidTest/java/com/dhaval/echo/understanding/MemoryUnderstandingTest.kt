@@ -7,6 +7,7 @@ import com.dhaval.echo.data.db.EchoDatabase
 import com.dhaval.echo.data.db.EntityType
 import com.dhaval.echo.data.db.ItemKind
 import com.dhaval.echo.data.understanding.KnownEntityAnalyzer
+import com.dhaval.echo.data.understanding.EntityGraphMaintainer
 import com.dhaval.echo.data.understanding.LocalEntityResolver
 import com.dhaval.echo.data.understanding.LocalMoodAnalyzer
 import com.dhaval.echo.data.understanding.LocalPersonAnalyzer
@@ -68,7 +69,7 @@ class MemoryUnderstandingTest {
         )
         service = RealMemoryUnderstandingService(
             analyzerProvider = MemoryAnalyzerProvider { localAnalyzers },
-            resolver = LocalEntityResolver(dao)
+            resolver = LocalEntityResolver(dao, EntityGraphMaintainer(dao))
         )
     }
 

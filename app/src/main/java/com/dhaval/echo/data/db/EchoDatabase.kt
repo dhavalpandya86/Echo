@@ -29,7 +29,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ExtractedItem::class,
         EntityRelationship::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -44,6 +44,16 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Phase B (corrections loop): users can archive an entity Echo got wrong
+         * or that is just noise. Additive nullable-safe column, default 0 (false).
+         */
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `entities` ADD COLUMN `archived` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 
         /**
          * Phase A (spec 07 — Knowledge Graph): the weighted entity↔entity edge

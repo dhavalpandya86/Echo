@@ -62,8 +62,16 @@ interface UnderstandingDao {
     @Query("SELECT * FROM entities WHERE userId = :userId AND type = :type")
     suspend fun getEntitiesByType(userId: String, type: String): List<EntityNode>
 
-    @Query("SELECT * FROM entities WHERE userId = :userId ORDER BY memoryCount DESC")
+    @Query("SELECT * FROM entities WHERE userId = :userId AND archived = 0 ORDER BY memoryCount DESC")
     fun getAllEntities(userId: String): Flow<List<EntityNode>>
+
+    /** Same-type candidates for a merge picker, excluding one entity and archived ones. */
+    @Query(
+        """SELECT * FROM entities
+           WHERE userId = :userId AND type = :type AND archived = 0 AND id <> :excludeId
+           ORDER BY memoryCount DESC"""
+    )
+    suspend fun getMergeCandidates(userId: String, type: String, excludeId: String): List<EntityNode>
 
     @Query("SELECT * FROM entities WHERE id = :id")
     suspend fun getEntityById(id: String): EntityNode?
@@ -141,7 +149,7 @@ interface UnderstandingDao {
                   r.weight AS weight, r.confidence AS confidence
            FROM entity_relationships r
            JOIN entities e ON e.id = r.targetEntityId
-           WHERE r.sourceEntityId = :entityId
+           WHERE r.sourceEntityId = :entityId AND e.archived = 0
            ORDER BY r.weight DESC, e.name ASC"""
     )
     fun getRelatedEntities(entityId: String): Flow<List<RelatedEntityView>>
@@ -152,10 +160,33 @@ interface UnderstandingDao {
                   r.weight AS weight, r.confidence AS confidence
            FROM entity_relationships r
            JOIN entities e ON e.id = r.targetEntityId
-           WHERE r.sourceEntityId = :entityId
+           WHERE r.sourceEntityId = :entityId AND e.archived = 0
            ORDER BY r.weight DESC, e.name ASC"""
     )
     suspend fun getRelatedEntitiesOnce(entityId: String): List<RelatedEntityView>
+
+    // ── Corrections loop (Phase B) ───────────────────────────────────
+
+    @Query("UPDATE entities SET archived = :archived WHERE id = :entityId")
+    suspend fun setArchived(entityId: String, archived: Boolean)
+
+    @Query("DELETE FROM entities WHERE id = :entityId")
+    suspend fun deleteEntity(entityId: String)
+
+    /**
+     * Move every link from one entity to another, dropping links that would
+     * duplicate one the target already has (same memory). Used by merge — after
+     * this the source entity has no links and can be deleted.
+     */
+    @Query(
+        """DELETE FROM memory_entity_links
+           WHERE entityId = :fromId
+             AND memoryId IN (SELECT memoryId FROM memory_entity_links WHERE entityId = :toId)"""
+    )
+    suspend fun deleteRedundantLinksBeforeMerge(fromId: String, toId: String)
+
+    @Query("UPDATE memory_entity_links SET entityId = :toId WHERE entityId = :fromId")
+    suspend fun repointLinks(fromId: String, toId: String)
 
     // ── Memory Graph (links) ─────────────────────────────────────────
 
