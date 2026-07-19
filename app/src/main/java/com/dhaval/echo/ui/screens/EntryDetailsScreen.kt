@@ -157,10 +157,22 @@ fun EntryDetailsScreen(
                         onRemove = viewModel::removeFromCollection
                     )
 
-                    if (uiState.relatedEntries.isNotEmpty()) {
+                    // "Project context" now names the memory's real project/topic
+                    // entity (not its own title). Shown only when one exists.
+                    val projectEntity = uiState.linkedEntities.firstOrNull {
+                        it.type == com.dhaval.echo.data.db.EntityType.PROJECT
+                    } ?: uiState.linkedEntities.firstOrNull {
+                        it.type == com.dhaval.echo.data.db.EntityType.TOPIC
+                    }
+                    if (projectEntity != null) {
                         Spacer(modifier = Modifier.height(32.dp))
-                        ProjectContextSection(uiState.entry?.title ?: "")
+                        ProjectContextSection(
+                            projectName = projectEntity.name,
+                            onClick = { onNavigateToEntity(projectEntity.entityId) }
+                        )
+                    }
 
+                    if (uiState.relatedEntries.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(32.dp))
                         RelatedMemoriesSection(
                             relatedEntries = uiState.relatedEntries,
@@ -629,7 +641,7 @@ private fun WorldsSection(
 }
 
 @Composable
-private fun ProjectContextSection(title: String) {
+private fun ProjectContextSection(projectName: String, onClick: () -> Unit) {
     Column {
         Text(
             text = "Project Context",
@@ -638,6 +650,7 @@ private fun ProjectContextSection(title: String) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         EchoCard(
+            onClick = onClick,
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -650,12 +663,12 @@ private fun ProjectContextSection(title: String) {
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        text = "Part of $title project",
+                        text = "Part of $projectName",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "This memory contributes to your ongoing work on $title.",
+                        text = "This memory contributes to your ongoing work on $projectName.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
