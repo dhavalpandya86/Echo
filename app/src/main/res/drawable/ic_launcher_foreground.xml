@@ -1,5 +1,6 @@
-<!-- Adaptive-icon foreground: Echo mark in Paper, sized to ~55% of the field.
-     Paints on the indigo background layer (@color/ic_launcher_background). -->
+<!-- Adaptive-icon foreground: Echo mark v2 (refined) in Paper, ~52% of the field,
+     optically centered on the indigo background (@drawable/ic_launcher_background).
+     v2: seed r6, rings r20/r34 stroke-7, golden-angle opening to the lower right. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -8,21 +9,21 @@
     <group
         android:pivotX="48"
         android:pivotY="48"
-        android:scaleX="0.55"
-        android:scaleY="0.55"
+        android:scaleX="0.52"
+        android:scaleY="0.52"
         android:translateX="6"
         android:translateY="6">
         <path
             android:fillColor="#FAF8F5"
-            android:pathData="M41,48 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 Z" />
+            android:pathData="M42,48 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z" />
         <path
             android:strokeColor="#FAF8F5"
-            android:strokeWidth="8"
-            android:pathData="M27,48 a21,21 0 1,0 42,0 a21,21 0 1,0 -42,0" />
+            android:strokeWidth="7"
+            android:pathData="M28,48 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0" />
         <path
             android:strokeColor="#FAF8F5"
-            android:strokeWidth="8"
+            android:strokeWidth="7"
             android:strokeLineCap="round"
-            android:pathData="M67.08,17.47 A36,36 0 1 1 18.73,27.04" />
+            android:pathData="M60.18,79.74 A34,34 0 1 1 78.61,62.80" />
     </group>
 </vector>
