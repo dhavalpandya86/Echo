@@ -15,6 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +29,9 @@ import javax.inject.Inject
 
 /** Which field dictation is filling. */
 enum class DictationTarget { TITLE, BODY }
+
+/** Per-character delay for the live typing animation (ms). Small = snappy. */
+private const val TYPE_DELAY_MS = 12L
 
 data class TextEntryUiState(
     val title: String = "",
@@ -68,6 +72,11 @@ class TextEntryViewModel @Inject constructor(
     private var dictationBase = ""   // field text before dictation began
     private var committed = ""       // finalized utterances this session
     private var partial = ""         // current interim utterance
+
+    // Typewriter: the field types toward the latest recognized text one char at a
+    // time (natural typing), catching up fast on big jumps so it never lags behind.
+    private var targetText = ""
+    private var typeJob: Job? = null
 
     fun onTitleChange(title: String) = _uiState.update { it.copy(title = title) }
 
@@ -118,25 +127,57 @@ class TextEntryViewModel @Inject constructor(
 
     /** Show the live draft: base + finalized + the in-progress partial. */
     private fun renderLive(target: DictationTarget) {
-        setField(target, joinDictation(dictationBase, joinDictation(committed, partial)))
+        typeToward(target, joinDictation(dictationBase, joinDictation(committed, partial)))
     }
 
     private fun finalizeLive(target: DictationTarget) {
         liveJob?.cancel(); liveJob = null
+        typeJob?.cancel(); typeJob = null
         val raw = committed.trim()
         viewModelScope.launch {
             val clean = if (raw.isBlank()) "" else cleanupTranscript(raw)
-            setField(target, joinDictation(dictationBase, clean))
+            setField(target, joinDictation(dictationBase, clean)) // snap to the final text
             resetDictationFlags()
         }
     }
 
     private fun failLive(target: DictationTarget, message: String) {
         liveJob?.cancel(); liveJob = null
+        typeJob?.cancel(); typeJob = null
         // Keep whatever was already dictated; just report the problem.
         setField(target, joinDictation(dictationBase, committed.trim()))
         _uiState.update { it.copy(error = message) }
         resetDictationFlags()
+    }
+
+    /** Aim the typewriter at [text]; a single loop converges the field toward it. */
+    private fun typeToward(target: DictationTarget, text: String) {
+        targetText = text
+        if (typeJob?.isActive == true) return
+        typeJob = viewModelScope.launch {
+            while (true) {
+                val cur = currentField(target)
+                val tgt = targetText
+                if (cur == tgt) break
+                val lcp = commonPrefixLength(cur, tgt)
+                val next = if (cur.length > lcp) {
+                    cur.dropLast(1) // recognizer revised the text — backspace to the divergence
+                } else {
+                    val remaining = tgt.length - cur.length
+                    val step = if (remaining > 24) remaining / 12 else 1 // catch up fast on big jumps
+                    tgt.substring(0, (cur.length + step.coerceAtLeast(1)).coerceAtMost(tgt.length))
+                }
+                setField(target, next)
+                delay(TYPE_DELAY_MS)
+            }
+        }
+    }
+
+    private fun commonPrefixLength(a: String, b: String): Int {
+        val n = minOf(a.length, b.length)
+        var i = 0
+        while (i < n && a[i] == b[i]) i++
+        return i
     }
 
     // ── Whisper fallback (record → transcribe file) ──────────────────
@@ -213,6 +254,7 @@ class TextEntryViewModel @Inject constructor(
 
     override fun onCleared() {
         liveJob?.cancel()
+        typeJob?.cancel()
         runCatching { liveDictation.release() }
         if (usingWhisper && dictationSessionId != null) {
             runCatching { recorder.stop() }

@@ -161,7 +161,7 @@ class AndroidLiveDictation @Inject constructor(
 
     private companion object {
         const val TAG = "LiveDictation"
-        const val RESTART_DELAY_MS = 250L
+        const val RESTART_DELAY_MS = 60L
         const val MAX_ERROR_STREAK = 20   // ~ many silent re-arms before giving up
     }
 }
