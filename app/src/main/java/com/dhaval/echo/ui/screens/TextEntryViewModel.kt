@@ -7,18 +7,17 @@ import androidx.lifecycle.viewModelScope
 import com.dhaval.echo.domain.audio.AudioConfig
 import com.dhaval.echo.domain.audio.AudioStorageEngine
 import com.dhaval.echo.domain.audio.Recorder
-import com.dhaval.echo.domain.audio.RecordingEvent
-import com.dhaval.echo.domain.audio.RecordingResult
 import com.dhaval.echo.domain.diary.DiaryRepository
 import com.dhaval.echo.domain.transcription.SpeechToTextEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -52,7 +51,6 @@ class TextEntryViewModel @Inject constructor(
     val uiState: StateFlow<TextEntryUiState> = _uiState.asStateFlow()
 
     private var dictationSessionId: String? = null
-    private var recorderJob: Job? = null
 
     fun onTitleChange(title: String) = _uiState.update { it.copy(title = title) }
 
@@ -66,42 +64,37 @@ class TextEntryViewModel @Inject constructor(
         val id = "dictation_${UUID.randomUUID()}"
         dictationSessionId = id
         _uiState.update { it.copy(isRecording = true, dictationTarget = target, error = null) }
-
-        recorderJob = viewModelScope.launch {
-            recorder.state.collect { event ->
-                if (event is RecordingEvent.Stopped) {
-                    recorderJob?.cancel()
-                    onDictationStopped(event.result, target)
-                }
-            }
-        }
         recorder.start(id, AudioConfig())
     }
 
-    /** Stop the clip and transcribe it into the target field. */
+    /**
+     * Stop the clip and transcribe it into the target field. The recorder emits no
+     * "stopped" event, but MediaRecorder.stop() flushes the file synchronously, so
+     * we read the capture path directly and run Whisper over it.
+     */
     fun stopDictation() {
         if (!_uiState.value.isRecording) return
+        val sessionId = dictationSessionId ?: return
+        val target = _uiState.value.dictationTarget ?: DictationTarget.BODY
         _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
-        recorder.stop()
-    }
 
-    private fun onDictationStopped(result: RecordingResult, target: DictationTarget) {
-        val sessionId = dictationSessionId
         viewModelScope.launch {
             try {
-                when (result) {
-                    is RecordingResult.Success -> {
-                        val text = sttEngine.transcribe(result.file.absolutePath).transcript.trim()
-                        if (text.isNotEmpty()) appendDictation(target, text)
-                    }
-                    is RecordingResult.Failure ->
-                        _uiState.update { it.copy(error = "Couldn't hear that. Try again.") }
+                val file = withContext(Dispatchers.IO) {
+                    recorder.stop()
+                    storageEngine.getCapturePath(sessionId)
                 }
+                if (!file.exists() || file.length() == 0L) {
+                    _uiState.update { it.copy(error = "Didn't catch that — try again.") }
+                    return@launch
+                }
+                val text = sttEngine.transcribe(file.absolutePath).transcript.trim()
+                if (text.isNotEmpty()) appendDictation(target, text)
+                else _uiState.update { it.copy(error = "Didn't catch that — try again.") }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = "Dictation failed: ${e.message}") }
             } finally {
-                // The clip was only a means to text — don't keep it around.
-                sessionId?.let { runCatching { storageEngine.deleteRecording(it) } }
+                sessionId.let { runCatching { storageEngine.deleteRecording(it) } }
                 dictationSessionId = null
                 _uiState.update { it.copy(isTranscribing = false, dictationTarget = null) }
             }
@@ -123,8 +116,10 @@ class TextEntryViewModel @Inject constructor(
         if (existing.isBlank()) added else "${existing.trimEnd()} $added"
 
     override fun onCleared() {
-        recorderJob?.cancel()
-        if (_uiState.value.isRecording) recorder.stop()
+        if (_uiState.value.isRecording) {
+            runCatching { recorder.stop() }
+            dictationSessionId?.let { runCatching { storageEngine.deleteRecording(it) } }
+        }
         super.onCleared()
     }
 
