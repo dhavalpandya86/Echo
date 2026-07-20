@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,6 +51,27 @@ fun TextEntryScreen(
     }
 
     var pendingCameraFilePath by remember { mutableStateOf("") }
+    var pendingDictationTarget by remember { mutableStateOf(DictationTarget.BODY) }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.startDictation(pendingDictationTarget)
+    }
+
+    fun toggleDictation(target: DictationTarget) {
+        if (uiState.isRecording) {
+            viewModel.stopDictation()
+        } else if (!uiState.isTranscribing) {
+            val perm = Manifest.permission.RECORD_AUDIO
+            if (ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED) {
+                viewModel.startDictation(target)
+            } else {
+                pendingDictationTarget = target
+                micPermissionLauncher.launch(perm)
+            }
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetMultipleContents()
@@ -132,6 +155,13 @@ fun TextEntryScreen(
                     focusedIndicatorColor = MaterialTheme.colorScheme.background,
                     unfocusedIndicatorColor = MaterialTheme.colorScheme.background
                 ),
+                trailingIcon = {
+                    MicButton(
+                        active = uiState.isRecording && uiState.dictationTarget == DictationTarget.TITLE,
+                        busy = uiState.isTranscribing && uiState.dictationTarget == DictationTarget.TITLE,
+                        onClick = { toggleDictation(DictationTarget.TITLE) }
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -156,6 +186,13 @@ fun TextEntryScreen(
                     focusedIndicatorColor = MaterialTheme.colorScheme.background,
                     unfocusedIndicatorColor = MaterialTheme.colorScheme.background
                 ),
+                trailingIcon = {
+                    MicButton(
+                        active = uiState.isRecording && uiState.dictationTarget == DictationTarget.BODY,
+                        busy = uiState.isTranscribing && uiState.dictationTarget == DictationTarget.BODY,
+                        onClick = { toggleDictation(DictationTarget.BODY) }
+                    )
+                },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
                 minLines = 8
             )
@@ -196,6 +233,23 @@ fun TextEntryScreen(
             }
 
             Spacer(Modifier.height(48.dp))
+        }
+    }
+}
+
+/** Mic toggle for a text field: tap to record, tap again to stop; spins while transcribing. */
+@Composable
+private fun MicButton(active: Boolean, busy: Boolean, onClick: () -> Unit) {
+    when {
+        busy -> CircularProgressIndicator(
+            modifier = Modifier.size(22.dp).padding(2.dp), strokeWidth = 2.dp
+        )
+        else -> IconButton(onClick = onClick) {
+            Icon(
+                imageVector = if (active) Icons.Default.Stop else Icons.Default.Mic,
+                contentDescription = if (active) "Stop dictation" else "Dictate",
+                tint = if (active) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
