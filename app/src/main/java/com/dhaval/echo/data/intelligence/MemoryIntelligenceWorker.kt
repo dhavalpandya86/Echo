@@ -36,7 +36,8 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     private val tagRepository: TagRepository,
     private val understandingService: MemoryUnderstandingService,
     private val photoTextExtractor: com.dhaval.echo.domain.understanding.PhotoTextExtractor,
-    private val photoVisualDescriber: com.dhaval.echo.domain.understanding.PhotoVisualDescriber
+    private val photoVisualDescriber: com.dhaval.echo.domain.understanding.PhotoVisualDescriber,
+    private val reminderScheduler: com.dhaval.echo.data.reminders.ReminderScheduler
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -67,6 +68,8 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
             // broken analyzer must not cost the user their summary/transcript.
             runCatching {
                 understandingService.understand(normalizedContentFor(entry, sourceText))
+                // Arm notifications for any dated commitments this memory produced.
+                reminderScheduler.scheduleForMemory(entryId)
             }.onFailure { Log.e(TAG, "Understanding stage failed for $entryId", it) }
 
             Log.d(TAG, "Intelligence pipeline completed for $entryId")

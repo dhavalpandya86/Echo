@@ -14,6 +14,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Fire commitment reminders at their due time, and re-arm them after reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <!-- Needed on Android 11+ to discover/bind the on-device speech recognizer
          used for live dictation. -->
     <queries>
@@ -44,6 +49,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Commitment reminders: fires notifications at due time + re-arms on boot. -->
+        <receiver
+            android:name=".data.reminders.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.startup.InitializationProvider"

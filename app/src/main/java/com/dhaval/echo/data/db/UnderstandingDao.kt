@@ -268,6 +268,9 @@ interface UnderstandingDao {
     @Query("SELECT * FROM extracted_items WHERE memoryId = :memoryId ORDER BY confidence DESC")
     fun getItemsForMemory(memoryId: String): Flow<List<ExtractedItem>>
 
+    @Query("SELECT * FROM extracted_items WHERE memoryId = :memoryId")
+    suspend fun getItemsForMemoryOnce(memoryId: String): List<ExtractedItem>
+
     @Query(
         """SELECT * FROM extracted_items
            WHERE userId = :userId AND kind IN ('TASK','REMINDER') AND status = 'OPEN'
@@ -289,6 +292,17 @@ interface UnderstandingDao {
     /** Reschedule a commitment (null clears its due date). */
     @Query("UPDATE extracted_items SET dueAtMillis = :dueAtMillis WHERE id = :itemId")
     suspend fun updateItemDue(itemId: String, dueAtMillis: Long?)
+
+    /** One item by id — used by the reminder receiver to validate before notifying. */
+    @Query("SELECT * FROM extracted_items WHERE id = :itemId")
+    suspend fun getItemById(itemId: String): ExtractedItem?
+
+    /** Every open, dated commitment — for (re)scheduling alarms (e.g. after boot). */
+    @Query(
+        """SELECT * FROM extracted_items
+           WHERE kind IN ('TASK','REMINDER') AND status = 'OPEN' AND dueAtMillis IS NOT NULL"""
+    )
+    suspend fun getSchedulableReminders(): List<ExtractedItem>
 
     // ── Idempotent re-processing ─────────────────────────────────────
 

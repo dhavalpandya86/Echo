@@ -30,6 +30,7 @@ data class TasksUiState(
 @HiltViewModel
 class TasksViewModel @Inject constructor(
     private val understandingDao: UnderstandingDao,
+    private val reminderScheduler: com.dhaval.echo.data.reminders.ReminderScheduler,
     authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -44,15 +45,18 @@ class TasksViewModel @Inject constructor(
 
     fun markDone(itemId: String) = viewModelScope.launch {
         understandingDao.updateItemStatus(itemId, ItemStatus.DONE)
+        reminderScheduler.cancel(itemId) // no need to nag about a done commitment
     }
 
     /** Move a completed commitment back to open. */
     fun undoDone(itemId: String) = viewModelScope.launch {
         understandingDao.updateItemStatus(itemId, ItemStatus.OPEN)
+        understandingDao.getItemById(itemId)?.let { reminderScheduler.schedule(it) }
     }
 
     fun dismiss(itemId: String) = viewModelScope.launch {
         understandingDao.updateItemStatus(itemId, ItemStatus.DISMISSED)
+        reminderScheduler.cancel(itemId)
     }
 
     /** Reschedule to the start of a day [daysFromNow] out (or clear with null). */
@@ -62,5 +66,7 @@ class TasksViewModel @Inject constructor(
                 .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         }
         understandingDao.updateItemDue(itemId, millis)
+        reminderScheduler.cancel(itemId) // clear the old alarm…
+        understandingDao.getItemById(itemId)?.let { reminderScheduler.schedule(it) } // …and set the new one
     }
 }
