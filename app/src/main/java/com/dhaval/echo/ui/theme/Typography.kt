@@ -14,23 +14,38 @@ import androidx.compose.ui.unit.sp
 import com.dhaval.echo.R
 
 /**
- * Manrope — the Echo brand typeface. Geometric enough to sit beside the circular
- * mark, humanist enough to feel warm. Bundled as a single variable font
- * (weight axis 200–800); each weight is derived via FontVariation (API 26+).
+ * Echo's two-typeface system (Stitch "Organic Minimalism"):
+ *  • Plus Jakarta Sans — headings & display. Geometric, confident, sits beside
+ *    the circular mark.
+ *  • Inter — body & captions. A workhorse UI face tuned for on-screen reading.
+ * Both are bundled as single variable fonts (weight axis); each weight is derived
+ * via FontVariation (API 26+).
  */
-private fun manropeWeight(weight: FontWeight) = Font(
-    R.font.manrope_variable,
+private fun variableWeight(resId: Int, weight: FontWeight) = Font(
+    resId,
     weight = weight,
     variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight))
 )
 
-val Manrope = FontFamily(
-    manropeWeight(FontWeight.Normal),     // 400 · body
-    manropeWeight(FontWeight.Medium),     // 500 · captions
-    manropeWeight(FontWeight.SemiBold),   // 600 · subheads
-    manropeWeight(FontWeight.Bold),       // 700 · headings
-    manropeWeight(FontWeight.ExtraBold),  // 800 · display
+/** Headings & display. */
+val Display = FontFamily(
+    variableWeight(R.font.plus_jakarta_sans_variable, FontWeight.Medium),
+    variableWeight(R.font.plus_jakarta_sans_variable, FontWeight.SemiBold),
+    variableWeight(R.font.plus_jakarta_sans_variable, FontWeight.Bold),
+    variableWeight(R.font.plus_jakarta_sans_variable, FontWeight.ExtraBold),
 )
+
+/** Body & captions. */
+val Body = FontFamily(
+    variableWeight(R.font.inter_variable, FontWeight.Normal),
+    variableWeight(R.font.inter_variable, FontWeight.Medium),
+    variableWeight(R.font.inter_variable, FontWeight.SemiBold),
+    variableWeight(R.font.inter_variable, FontWeight.Bold),
+)
+
+// Back-compat alias for any code referencing the old brand family name.
+@Deprecated("Use Display (headings) or Body (text)", ReplaceWith("Body"))
+val Manrope = Body
 
 /**
  * Echo type scale — 1.333 ratio on a 15px base. Tracking tightens as size grows
@@ -39,21 +54,21 @@ val Manrope = FontFamily(
 val Typography = Typography(
     // Display · 800 · 42/1.12 · −3%
     displayLarge = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.ExtraBold,
         fontSize = 42.sp,
         lineHeight = 47.sp,
         letterSpacing = (-0.03).em
     ),
     displayMedium = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.ExtraBold,
         fontSize = 34.sp,
         lineHeight = 40.sp,
         letterSpacing = (-0.03).em
     ),
     displaySmall = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.Bold,
         fontSize = 30.sp,
         lineHeight = 36.sp,
@@ -61,7 +76,7 @@ val Typography = Typography(
     ),
     // H1 · 700 · 30/1.2 · −2%
     headlineLarge = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.Bold,
         fontSize = 30.sp,
         lineHeight = 36.sp,
@@ -69,14 +84,14 @@ val Typography = Typography(
     ),
     // H2 · 700 · 22/1.3 · −1.5%
     headlineMedium = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 29.sp,
         letterSpacing = (-0.015).em
     ),
     headlineSmall = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.Bold,
         fontSize = 19.sp,
         lineHeight = 25.sp,
@@ -84,21 +99,21 @@ val Typography = Typography(
     ),
     // Subhead · 600 · 17/1.4
     titleLarge = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.SemiBold,
         fontSize = 17.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
         lineHeight = 21.sp,
         letterSpacing = 0.sp
     ),
     titleSmall = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Display,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
         lineHeight = 18.sp,
@@ -106,21 +121,21 @@ val Typography = Typography(
     ),
     // Body · 400 · 15/1.65
     bodyLarge = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Body,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         lineHeight = 25.sp,
         letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Body,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
     bodySmall = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Body,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 18.sp,
@@ -128,21 +143,21 @@ val Typography = Typography(
     ),
     // Caption · 500 · 12 · Slate
     labelLarge = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Body,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 18.sp,
         letterSpacing = 0.sp
     ),
     labelMedium = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Body,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.01.em
     ),
     labelSmall = TextStyle(
-        fontFamily = Manrope,
+        fontFamily = Body,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 15.sp,
