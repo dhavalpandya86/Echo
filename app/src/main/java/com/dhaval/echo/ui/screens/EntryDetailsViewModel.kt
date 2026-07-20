@@ -90,7 +90,8 @@ class EntryDetailsViewModel @Inject constructor(
                     textContent = entry.textContent,
                     imagePaths = entry.imagePaths,
                     entryType = entry.entryType,
-                    videos = entry.videos.orEmpty()
+                    videos = entry.videos.orEmpty(),
+                    visualSummary = entry.visualSummary
                 ),
                 isLoading = false,
                 formattedDate = entry.createdAt.format(dateFormatter),

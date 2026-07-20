@@ -35,6 +35,9 @@ interface IntelligenceDao {
     @Query("UPDATE diary_entries SET title = :title, summary = :summary WHERE id = :entryId")
     suspend fun updateAnalysisResults(entryId: String, title: String, summary: String?)
 
+    @Query("UPDATE diary_entries SET visualSummary = :visualSummary WHERE id = :entryId")
+    suspend fun updateVisualSummary(entryId: String, visualSummary: String?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertClassification(classification: MemoryClassificationEntity)
 

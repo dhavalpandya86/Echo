@@ -97,6 +97,7 @@ dependencies {
     // On-device OCR (MU-3): Latin + Devanagari scripts, bundled models.
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.devanagari)
+    implementation(libs.mlkit.image.labeling)
     implementation(libs.facebook.login)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)

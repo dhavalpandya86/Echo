@@ -113,6 +113,12 @@ fun EntryDetailsScreen(
                         ImageGallerySection(it.imagePaths)
                     }
 
+                    // What Echo saw in the photos (on-device labels + place).
+                    it.visualSummary?.takeIf { s -> s.isNotBlank() }?.let { seen ->
+                        Spacer(modifier = Modifier.height(24.dp))
+                        EchoSeesSection(seen)
+                    }
+
                     if (!it.summary.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(24.dp))
                         SummarySection(it.summary)
@@ -439,6 +445,36 @@ private fun SummarySection(summary: String) {
             ),
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+/** "Echo sees…" — what on-device photo understanding found (labels + place). */
+@Composable
+private fun EchoSeesSection(summary: String) {
+    EchoCard(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Visibility,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = "Echo sees",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
     }
 }
 

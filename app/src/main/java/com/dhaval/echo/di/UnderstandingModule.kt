@@ -50,6 +50,11 @@ abstract class UnderstandingModule {
     abstract fun photoTextExtractor(impl: MlKitPhotoTextExtractor): PhotoTextExtractor
 
     @Binds @Singleton
+    abstract fun photoVisualDescriber(
+        impl: com.dhaval.echo.data.understanding.MlKitPhotoVisualDescriber
+    ): com.dhaval.echo.domain.understanding.PhotoVisualDescriber
+
+    @Binds @Singleton
     abstract fun understandingService(impl: RealMemoryUnderstandingService): MemoryUnderstandingService
 
     companion object {

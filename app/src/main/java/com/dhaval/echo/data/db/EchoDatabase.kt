@@ -29,7 +29,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ExtractedItem::class,
         EntityRelationship::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -44,6 +44,16 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Photo understanding: the on-device "Echo sees…" summary (image labels +
+         * EXIF-GPS place). Additive nullable column.
+         */
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `diary_entries` ADD COLUMN `visualSummary` TEXT")
+            }
+        }
 
         /**
          * Phase B (corrections loop): users can archive an entity Echo got wrong

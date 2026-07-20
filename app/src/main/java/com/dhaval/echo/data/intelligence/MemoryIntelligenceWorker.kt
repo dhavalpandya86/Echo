@@ -35,7 +35,8 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     private val aiManager: AIManager,
     private val tagRepository: TagRepository,
     private val understandingService: MemoryUnderstandingService,
-    private val photoTextExtractor: com.dhaval.echo.domain.understanding.PhotoTextExtractor
+    private val photoTextExtractor: com.dhaval.echo.domain.understanding.PhotoTextExtractor,
+    private val photoVisualDescriber: com.dhaval.echo.domain.understanding.PhotoVisualDescriber
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -127,10 +128,19 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
             .onFailure { Log.w(TAG, "Photo OCR failed for ${entry.id}", it) }
             .getOrDefault("")
 
+        // Photo visual understanding (on-device labels + EXIF-GPS place). Its snippet
+        // joins the source text so places become entities and labels become tags;
+        // the human summary is stored for the "Echo sees…" line.
+        val visual = runCatching { photoVisualDescriber.describe(entry.imagePaths.orEmpty()) }
+            .onFailure { Log.w(TAG, "Photo visual understanding failed for ${entry.id}", it) }
+            .getOrNull()
+        intelligenceDao.updateVisualSummary(entry.id, visual?.asSummary())
+
         return listOfNotNull(
             transcript.takeIf { it.isNotBlank() },
             entry.textContent?.takeIf { it.isNotBlank() },
-            ocr.takeIf { it.isNotBlank() }
+            ocr.takeIf { it.isNotBlank() },
+            visual?.asSourceText()?.takeIf { it.isNotBlank() }
         ).joinToString("\n\n").trim()
     }
 

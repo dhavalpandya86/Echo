@@ -41,7 +41,11 @@ data class DiaryEntry(
     val embedding: FloatArray? = null,
     val embeddingDimensions: Int? = null,
     val embeddingModelVersion: String? = null,
-    val embeddingCreatedAt: Long? = null
+    val embeddingCreatedAt: Long? = null,
+
+    // Photo understanding (DB version 16): the "Echo sees…" summary derived on-device
+    // from image labels + EXIF-GPS place. Null when there are no photos / nothing seen.
+    val visualSummary: String? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -72,6 +76,7 @@ data class DiaryEntry(
         if (embeddingDimensions != other.embeddingDimensions) return false
         if (embeddingModelVersion != other.embeddingModelVersion) return false
         if (embeddingCreatedAt != other.embeddingCreatedAt) return false
+        if (visualSummary != other.visualSummary) return false
         return true
     }
 
@@ -98,6 +103,7 @@ data class DiaryEntry(
         result = 31 * result + (embeddingDimensions ?: 0)
         result = 31 * result + (embeddingModelVersion?.hashCode() ?: 0)
         result = 31 * result + (embeddingCreatedAt?.hashCode() ?: 0)
+        result = 31 * result + (visualSummary?.hashCode() ?: 0)
         return result
     }
 }
