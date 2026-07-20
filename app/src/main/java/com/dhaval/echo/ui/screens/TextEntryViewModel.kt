@@ -31,7 +31,7 @@ import javax.inject.Inject
 enum class DictationTarget { TITLE, BODY }
 
 /** Per-character delay for the live typing animation (ms). Small = snappy. */
-private const val TYPE_DELAY_MS = 12L
+private const val TYPE_DELAY_MS = 8L
 
 data class TextEntryUiState(
     val title: String = "",
@@ -164,7 +164,7 @@ class TextEntryViewModel @Inject constructor(
                     cur.dropLast(1) // recognizer revised the text — backspace to the divergence
                 } else {
                     val remaining = tgt.length - cur.length
-                    val step = if (remaining > 24) remaining / 12 else 1 // catch up fast on big jumps
+                    val step = if (remaining > 16) remaining / 8 else 1 // catch up fast on big jumps
                     tgt.substring(0, (cur.length + step.coerceAtLeast(1)).coerceAtMost(tgt.length))
                 }
                 setField(target, next)

@@ -88,8 +88,12 @@ class AndroidLiveDictation @Inject constructor(
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // Keep audio on-device when we can.
+            // Keep audio on-device (private).
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Hold one utterance across short thinking-pauses so we don't pay the
+            // recognizer warm-up + first-partial latency again after every pause.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             languageTag?.let { putExtra(RecognizerIntent.EXTRA_LANGUAGE, it) }
         }
         runCatching { recognizer?.startListening(intent) }
@@ -98,6 +102,8 @@ class AndroidLiveDictation @Inject constructor(
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) { _events.tryEmit(DictationEvent.Ready) }
+
+        override fun onBeginningOfSpeech() {}
 
         override fun onPartialResults(partialResults: Bundle?) {
             firstResult(partialResults)?.let { errorStreak = 0; _events.tryEmit(DictationEvent.Partial(it)) }
@@ -129,7 +135,6 @@ class AndroidLiveDictation @Inject constructor(
         }
 
         override fun onEndOfSpeech() {}
-        override fun onBeginningOfSpeech() {}
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEvent(eventType: Int, params: Bundle?) {}
