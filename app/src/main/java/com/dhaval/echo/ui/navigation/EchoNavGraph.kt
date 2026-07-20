@@ -260,8 +260,13 @@ fun EchoNavGraph(
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 },
+                onOpenReview = { navController.navigate(ReviewRoute) },
                 onProfileClick = { navController.navigate(SettingsRoute) }
             )
+        }
+
+        composable<ReviewRoute> {
+            ReviewScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable<CollectionDetailsRoute> {

@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 fun ConversationScreen(
     viewModel: ConversationViewModel = hiltViewModel(),
     onNavigateToEntry: (String) -> Unit,
+    onOpenReview: () -> Unit = {},
     onProfileClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -66,10 +67,11 @@ fun ConversationScreen(
             if (uiState.messages.isEmpty()) {
                 WelcomeView(
                     suggestedQuestions = uiState.suggestedQuestions,
-                    onQuestionClick = { 
+                    onQuestionClick = {
                         viewModel.onQuestionChange(it)
                         viewModel.askQuestion()
                     },
+                    onOpenReview = onOpenReview,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -134,6 +136,7 @@ private val reflectPrompts = listOf(
 fun WelcomeView(
     suggestedQuestions: List<String>,
     onQuestionClick: (String) -> Unit,
+    onOpenReview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -154,6 +157,36 @@ fun WelcomeView(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
+            }
+        }
+        // The generated reflection — real, from your own memories.
+        item {
+            Surface(
+                onClick = onOpenReview,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.AutoAwesome, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            "See your reflection",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Text(
+                            "A look back at your week and month, from your own memories.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        )
+                    }
+                }
             }
         }
         items(reflectPrompts) { prompt ->
