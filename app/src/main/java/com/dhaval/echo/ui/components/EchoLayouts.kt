@@ -106,8 +106,10 @@ fun EchoTopBar(
             // Profile / "You" lives behind the top-right avatar (no nav tab).
             onProfileClick?.let { EchoProfileAvatar(onClick = it) }
         },
+        // Opaque paper background so scrolling content passes behind the bar
+        // rather than showing through it.
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Transparent
+            containerColor = MaterialTheme.colorScheme.background
         )
     )
 }

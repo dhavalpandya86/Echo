@@ -146,7 +146,11 @@ private fun TodayTopBar(onProfileClick: () -> Unit) {
             )
         },
         actions = { EchoProfileAvatar(onClick = onProfileClick) },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+        // Opaque paper background so scrolled content passes *behind* the bar,
+        // not through it (the wordmark/avatar must never overlap the list).
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background
+        )
     )
 }
 
