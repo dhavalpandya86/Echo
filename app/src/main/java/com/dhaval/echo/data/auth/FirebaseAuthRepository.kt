@@ -18,26 +18,23 @@ class FirebaseAuthRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth
 ) : AuthRepository {
 
-    // --- DEVELOPMENT BYPASS: Hardcoded Guest User ---
-    private val devUser = User(
-        id = "dev_user_123",
-        displayName = "Guest Developer",
-        email = "dev@example.com",
-        phoneNumber = null,
-        photoUrl = null,
-        authProviders = listOf(AuthProvider.EMAIL),
-        createdAt = System.currentTimeMillis()
-    )
-
-    private val _authState = MutableStateFlow<AuthState>(AuthState.Authenticated(devUser))
+    // Real Firebase auth state — reflects who is actually signed in. Unauthenticated
+    // drives the app to the Welcome/Login flow (EchoApp gates on this).
+    private val _authState = MutableStateFlow(currentState())
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    override val currentUserId: Flow<String?> = flowOf("dev_user_123")
+    override val currentUserId: Flow<String?> =
+        _authState.map { (it as? AuthState.Authenticated)?.user?.id }
+
+    private val authListener = FirebaseAuth.AuthStateListener { _authState.value = currentState() }
 
     init {
-        Log.d("FirebaseAuthRepository", "INITIALIZED IN GUEST MODE for development")
+        firebaseAuth.addAuthStateListener(authListener)
     }
-    // ------------------------------------------------
+
+    private fun currentState(): AuthState =
+        firebaseAuth.currentUser?.let { AuthState.Authenticated(it.toDomainUser()) }
+            ?: AuthState.Unauthenticated
 
     override suspend fun createEmailAccount(name: String, email: String, password: String): Result<User> {
         return try {
@@ -134,9 +131,7 @@ class FirebaseAuthRepository @Inject constructor(
         }
     }
 
-    override suspend fun getCurrentUser(): User? {
-        return devUser
-    }
+    override suspend fun getCurrentUser(): User? = firebaseAuth.currentUser?.toDomainUser()
 
     private fun FirebaseUser.toDomainUser(): User {
         return User(

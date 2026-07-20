@@ -9,8 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,11 +39,26 @@ fun EchoNavGraph(
     authState: AuthState,
     modifier: Modifier = Modifier
 ) {
-    // --- DEVELOPMENT BYPASS: Always start at Home ---
-    val startDestination: Any = HomeRoute
-    // ------------------------------------------------
+    // Signed-in users land on Today; everyone else starts at Welcome.
+    val startDestination: Any =
+        if (authState is AuthState.Authenticated) HomeRoute else WelcomeRoute
 
-    // Auto-navigation on auth state change is disabled for bypass
+    // React to sign-in / sign-out after the first frame (the start destination
+    // already covers cold start). Clears the back stack so you can't navigate back
+    // across the auth boundary.
+    var initialized by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(authState) {
+        if (!initialized) { initialized = true; return@LaunchedEffect }
+        when (authState) {
+            is AuthState.Authenticated -> navController.navigate(HomeRoute) {
+                popUpTo(0) { inclusive = true }; launchSingleTop = true
+            }
+            AuthState.Unauthenticated -> navController.navigate(WelcomeRoute) {
+                popUpTo(0) { inclusive = true }; launchSingleTop = true
+            }
+            else -> Unit
+        }
+    }
 
     NavHost(
         navController = navController,
