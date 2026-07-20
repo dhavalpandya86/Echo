@@ -8,10 +8,13 @@ import com.dhaval.echo.domain.audio.AudioConfig
 import com.dhaval.echo.domain.audio.AudioStorageEngine
 import com.dhaval.echo.domain.audio.Recorder
 import com.dhaval.echo.domain.diary.DiaryRepository
+import com.dhaval.echo.domain.transcription.DictationEvent
+import com.dhaval.echo.domain.transcription.LiveDictation
 import com.dhaval.echo.domain.transcription.SpeechToTextEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,36 +47,109 @@ class TextEntryViewModel @Inject constructor(
     private val diaryRepository: DiaryRepository,
     private val recorder: Recorder,
     private val storageEngine: AudioStorageEngine,
-    private val sttEngine: SpeechToTextEngine
+    private val sttEngine: SpeechToTextEngine,
+    private val liveDictation: LiveDictation
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TextEntryUiState())
     val uiState: StateFlow<TextEntryUiState> = _uiState.asStateFlow()
 
+    // ── Mic dictation ────────────────────────────────────────────────
+    // Live path (platform SpeechRecognizer) when available; else a Whisper
+    // record-then-transcribe fallback.
+
+    private var usingWhisper = false
+
+    // Whisper fallback session
     private var dictationSessionId: String? = null
+
+    // Live session
+    private var liveJob: Job? = null
+    private var dictationBase = ""   // field text before dictation began
+    private var committed = ""       // finalized utterances this session
+    private var partial = ""         // current interim utterance
 
     fun onTitleChange(title: String) = _uiState.update { it.copy(title = title) }
 
     fun onTextChange(text: String) = _uiState.update { it.copy(textContent = text) }
 
-    // ── Mic dictation (Whisper, offline) ─────────────────────────────
-
-    /** Start capturing a short clip to dictate into [target]. */
+    /** Begin dictating into [target]. Words stream in live when the platform allows. */
     fun startDictation(target: DictationTarget) {
         if (_uiState.value.isRecording || _uiState.value.isTranscribing) return
+        if (liveDictation.isAvailable) startLiveDictation(target) else startWhisperDictation(target)
+    }
+
+    /** Stop the current dictation and commit the (cleaned) text. */
+    fun stopDictation() {
+        if (!_uiState.value.isRecording) return
+        if (usingWhisper) stopWhisperDictation() else stopLiveDictation()
+    }
+
+    // ── Live dictation ───────────────────────────────────────────────
+
+    private fun startLiveDictation(target: DictationTarget) {
+        usingWhisper = false
+        dictationBase = currentField(target)
+        committed = ""
+        partial = ""
+        _uiState.update { it.copy(isRecording = true, dictationTarget = target, error = null) }
+
+        liveJob = viewModelScope.launch {
+            liveDictation.events.collect { event ->
+                when (event) {
+                    is DictationEvent.Partial -> { partial = event.text; renderLive(target) }
+                    is DictationEvent.Final -> {
+                        committed = joinDictation(committed, event.text); partial = ""; renderLive(target)
+                    }
+                    is DictationEvent.Failed -> failLive(target, event.message)
+                    DictationEvent.Ended -> finalizeLive(target)
+                    DictationEvent.Ready -> Unit
+                }
+            }
+        }
+        liveDictation.start(languageTag = null) // device default; language picker is a later step
+    }
+
+    private fun stopLiveDictation() {
+        // Wait for the last utterance to finalize, then clean up in finalizeLive().
+        _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
+        liveDictation.stop()
+    }
+
+    /** Show the live draft: base + finalized + the in-progress partial. */
+    private fun renderLive(target: DictationTarget) {
+        setField(target, joinDictation(dictationBase, joinDictation(committed, partial)))
+    }
+
+    private fun finalizeLive(target: DictationTarget) {
+        liveJob?.cancel(); liveJob = null
+        val raw = committed.trim()
+        viewModelScope.launch {
+            val clean = if (raw.isBlank()) "" else cleanupTranscript(raw)
+            setField(target, joinDictation(dictationBase, clean))
+            resetDictationFlags()
+        }
+    }
+
+    private fun failLive(target: DictationTarget, message: String) {
+        liveJob?.cancel(); liveJob = null
+        // Keep whatever was already dictated; just report the problem.
+        setField(target, joinDictation(dictationBase, committed.trim()))
+        _uiState.update { it.copy(error = message) }
+        resetDictationFlags()
+    }
+
+    // ── Whisper fallback (record → transcribe file) ──────────────────
+
+    private fun startWhisperDictation(target: DictationTarget) {
+        usingWhisper = true
         val id = "dictation_${UUID.randomUUID()}"
         dictationSessionId = id
         _uiState.update { it.copy(isRecording = true, dictationTarget = target, error = null) }
         recorder.start(id, AudioConfig())
     }
 
-    /**
-     * Stop the clip and transcribe it into the target field. The recorder emits no
-     * "stopped" event, but MediaRecorder.stop() flushes the file synchronously, so
-     * we read the capture path directly and run Whisper over it.
-     */
-    fun stopDictation() {
-        if (!_uiState.value.isRecording) return
+    private fun stopWhisperDictation() {
         val sessionId = dictationSessionId ?: return
         val target = _uiState.value.dictationTarget ?: DictationTarget.BODY
         _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
@@ -88,35 +164,57 @@ class TextEntryViewModel @Inject constructor(
                     _uiState.update { it.copy(error = "Didn't catch that — try again.") }
                     return@launch
                 }
-                val text = sttEngine.transcribe(file.absolutePath).transcript.trim()
-                if (text.isNotEmpty()) appendDictation(target, text)
-                else _uiState.update { it.copy(error = "Didn't catch that — try again.") }
+                val raw = sttEngine.transcribe(file.absolutePath).transcript.trim()
+                if (raw.isNotEmpty()) {
+                    val clean = cleanupTranscript(raw)
+                    setField(target, joinDictation(currentField(target), clean))
+                } else {
+                    _uiState.update { it.copy(error = "Didn't catch that — try again.") }
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = "Dictation failed: ${e.message}") }
             } finally {
                 sessionId.let { runCatching { storageEngine.deleteRecording(it) } }
                 dictationSessionId = null
-                _uiState.update { it.copy(isTranscribing = false, dictationTarget = null) }
+                resetDictationFlags()
             }
         }
     }
 
-    private fun appendDictation(target: DictationTarget, text: String) {
-        _uiState.update { state ->
+    /**
+     * Post-process a raw transcript — filler removal, punctuation, name correction.
+     * Identity for now; wired to the cleanup service in V2.
+     */
+    private suspend fun cleanupTranscript(raw: String): String = raw
+
+    private fun currentField(target: DictationTarget): String = when (target) {
+        DictationTarget.TITLE -> _uiState.value.title
+        DictationTarget.BODY -> _uiState.value.textContent
+    }
+
+    private fun setField(target: DictationTarget, value: String) {
+        _uiState.update {
             when (target) {
-                DictationTarget.TITLE ->
-                    state.copy(title = joinDictation(state.title, text))
-                DictationTarget.BODY ->
-                    state.copy(textContent = joinDictation(state.textContent, text))
+                DictationTarget.TITLE -> it.copy(title = value)
+                DictationTarget.BODY -> it.copy(textContent = value)
             }
         }
     }
 
-    private fun joinDictation(existing: String, added: String): String =
-        if (existing.isBlank()) added else "${existing.trimEnd()} $added"
+    private fun resetDictationFlags() {
+        _uiState.update { it.copy(isRecording = false, isTranscribing = false, dictationTarget = null) }
+    }
+
+    private fun joinDictation(existing: String, added: String): String = when {
+        added.isBlank() -> existing
+        existing.isBlank() -> added
+        else -> "${existing.trimEnd()} $added"
+    }
 
     override fun onCleared() {
-        if (_uiState.value.isRecording) {
+        liveJob?.cancel()
+        runCatching { liveDictation.release() }
+        if (usingWhisper && dictationSessionId != null) {
             runCatching { recorder.stop() }
             dictationSessionId?.let { runCatching { storageEngine.deleteRecording(it) } }
         }
