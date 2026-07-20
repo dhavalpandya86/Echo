@@ -63,6 +63,8 @@ kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "ko
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version = "16.0.1" }
 mlkit-text-recognition-devanagari = { group = "com.google.mlkit", name = "text-recognition-devanagari", version = "16.0.1" }
 mlkit-image-labeling = { group = "com.google.mlkit", name = "image-labeling", version = "17.0.9" }
+mlkit-image-labeling-custom = { group = "com.google.mlkit", name = "image-labeling-custom", version = "17.0.3" }
+mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version = "16.1.7" }
 
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
