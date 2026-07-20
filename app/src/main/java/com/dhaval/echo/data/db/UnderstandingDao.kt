@@ -65,6 +65,16 @@ interface UnderstandingDao {
     @Query("SELECT * FROM entities WHERE userId = :userId AND archived = 0 ORDER BY memoryCount DESC")
     fun getAllEntities(userId: String): Flow<List<EntityNode>>
 
+    /** Entities whose name or alias matches a query — for hybrid recall. */
+    @Query(
+        """SELECT * FROM entities
+           WHERE userId = :userId AND archived = 0
+             AND (LOWER(name) LIKE '%' || LOWER(:query) || '%'
+                  OR LOWER(aliases) LIKE '%' || LOWER(:query) || '%')
+           ORDER BY memoryCount DESC LIMIT 10"""
+    )
+    suspend fun searchEntities(userId: String, query: String): List<EntityNode>
+
     /** Same-type candidates for a merge picker, excluding one entity and archived ones. */
     @Query(
         """SELECT * FROM entities

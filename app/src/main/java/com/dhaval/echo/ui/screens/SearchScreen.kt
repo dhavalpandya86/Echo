@@ -34,6 +34,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SearchScreen(
     onEntryClick: (String) -> Unit,
+    onEntityClick: (String) -> Unit = {},
     onProfileClick: () -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
@@ -66,16 +67,31 @@ fun SearchScreen(
             Spacer(Modifier.height(16.dp))
 
             when {
-                state.results.isNotEmpty() -> {
+                state.results.isNotEmpty() || state.entityMatches.isNotEmpty() -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
+                        // Hybrid recall: people, places, projects & feelings first.
+                        if (state.entityMatches.isNotEmpty()) {
+                            item {
+                                EntityMatchesSection(state.entityMatches, onEntityClick = onEntityClick)
+                            }
+                        }
                         // An inferred connection, surfaced above the browsable memories.
                         if (state.filter.query.isEmpty()) {
                             state.echoConnection?.let { conn ->
                                 item { EchoConnectionCard(conn, onOpen = { onEntryClick(conn.memoryId) }) }
+                            }
+                        }
+                        if (state.results.isNotEmpty()) {
+                            item {
+                                Text(
+                                    "Memories",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                         items(state.results, key = { it.entry.id }) { result ->
@@ -127,6 +143,37 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Hybrid recall: entity hits (people, places, projects, feelings) as chips. */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun EntityMatchesSection(
+    entities: List<com.dhaval.echo.data.db.EntityNode>,
+    onEntityClick: (String) -> Unit
+) {
+    Column {
+        Text(
+            "People, places & topics",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            entities.forEach { e ->
+                val n = e.memoryCount
+                AssistChip(
+                    onClick = { onEntityClick(e.id) },
+                    label = {
+                        Text("${e.name}  ·  ${if (n == 1) "1 memory" else "$n memories"}")
+                    }
+                )
             }
         }
     }
