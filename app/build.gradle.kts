@@ -65,8 +65,16 @@ android {
     androidResources {
         // The ONNX model is already int8-quantized and does not compress
         // meaningfully; letting AAPT try costs build time and gains ~nothing.
+        // Declared here rather than per-pack: this drives the bundle config, which
+        // covers the asset packs' contents too.
         noCompress += listOf("onnx")
     }
+
+    // ~300 MB of models live in install-time asset packs instead of the base
+    // module, which would otherwise sit at Play's 500 MB base-module ceiling.
+    // Install-time packs are readable through the ordinary AssetManager, so the
+    // engines keep opening "whisper/..." and "embeddings/..." unchanged.
+    assetPacks += listOf(":whisper_models", ":embedding_models")
 }
 
 dependencies {

@@ -82,6 +82,7 @@ onnxruntime-extensions-android = { group = "com.microsoft.onnxruntime", name = "
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-asset-pack = { id = "com.android.asset-pack", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

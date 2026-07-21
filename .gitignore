@@ -9,6 +9,8 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+# Unanchored: also covers app/build and the asset-pack modules' build dirs.
+build/
 /captures
 .externalNativeBuild
 .cxx
