@@ -15,8 +15,7 @@ interface AuthRepository {
     suspend fun verifyOtp(verificationId: String, otp: String): Result<User>
     
     suspend fun loginWithGoogle(idToken: String): Result<User>
-    suspend fun loginWithFacebook(accessToken: String): Result<User>
-    
+
     suspend fun logout(): Result<Unit>
     suspend fun getCurrentUser(): User?
 }

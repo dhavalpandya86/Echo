@@ -1,7 +1,6 @@
 package com.dhaval.echo
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,9 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dhaval.echo.ui.EchoApp
-import com.dhaval.echo.ui.auth.FacebookAuthHelper
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
 /**
  * The main entry point of the application.
@@ -23,9 +20,6 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    @Inject
-    lateinit var facebookAuthHelper: FacebookAuthHelper
 
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* best-effort */ }
@@ -48,10 +42,5 @@ class MainActivity : ComponentActivity() {
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        facebookAuthHelper.onActivityResult(requestCode, resultCode, data)
     }
 }

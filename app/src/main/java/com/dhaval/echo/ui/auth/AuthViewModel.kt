@@ -60,17 +60,6 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun loginWithFacebook(accessToken: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
-            authRepository.loginWithFacebook(accessToken).onFailure {
-                _error.value = it.message ?: "Facebook login failed"
-            }
-            _isLoading.value = false
-        }
-    }
-
     fun sendPasswordReset(email: String) {
         viewModelScope.launch {
             _isLoading.value = true

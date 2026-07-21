@@ -73,10 +73,7 @@ fun EchoNavGraph(
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             
-            // Get the Singleton helpers from Hilt
             val googleAuthHelper = remember { GoogleAuthHelper(context) }
-            val activity = context as? MainActivity
-            val facebookAuthHelper = activity?.facebookAuthHelper
 
             val error by authViewModel.error.collectAsState()
 
@@ -96,16 +93,6 @@ fun EchoNavGraph(
                                 Log.e("EchoNavGraph", "Google Sign-In failed", error)
                                 authViewModel.setError(error.message ?: "Google Sign-In failed")
                             }
-                    }
-                },
-                onFacebookSignIn = {
-                    scope.launch {
-                        if (activity != null && facebookAuthHelper != null) {
-                            val token = facebookAuthHelper.signIn(activity)
-                            token?.let {
-                                authViewModel.loginWithFacebook(it)
-                            }
-                        }
                     }
                 },
                 error = error

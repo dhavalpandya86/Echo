@@ -19,7 +19,6 @@ hiltWork = "1.2.0"
 ksp = "2.3.2"
 firebase-bom = "34.16.0"
 google-services = "4.5.0"
-facebook-sdk = "17.0.0"
 credentials = "1.2.2"
 googleid = "1.1.1"
 splashscreen = "1.0.1"
@@ -70,7 +69,6 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.2.0" }
-facebook-login = { group = "com.facebook.android", name = "facebook-login", version.ref = "facebook-sdk" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }

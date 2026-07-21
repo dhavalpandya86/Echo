@@ -111,17 +111,6 @@ class FirebaseAuthRepository @Inject constructor(
         }
     }
 
-    override suspend fun loginWithFacebook(accessToken: String): Result<User> {
-        return try {
-            val credential = com.google.firebase.auth.FacebookAuthProvider.getCredential(accessToken)
-            val result = firebaseAuth.signInWithCredential(credential).await()
-            val firebaseUser = result.user ?: throw Exception("Facebook login failed")
-            Result.success(firebaseUser.toDomainUser())
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     override suspend fun logout(): Result<Unit> {
         return try {
             firebaseAuth.signOut()
@@ -145,7 +134,6 @@ class FirebaseAuthRepository @Inject constructor(
                     "password" -> AuthProvider.EMAIL
                     "phone" -> AuthProvider.PHONE
                     "google.com" -> AuthProvider.GOOGLE
-                    "facebook.com" -> AuthProvider.FACEBOOK
                     else -> null
                 }
             }.distinct(),

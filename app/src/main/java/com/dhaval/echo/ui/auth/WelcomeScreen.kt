@@ -34,7 +34,6 @@ fun WelcomeScreen(
     onLogin: () -> Unit,
     onPhoneLogin: () -> Unit,
     onGoogleSignIn: () -> Unit,
-    onFacebookSignIn: () -> Unit,
     error: String? = null
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -132,13 +131,7 @@ fun WelcomeScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Social ────────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                GoogleSignInButton(onClick = onGoogleSignIn, modifier = Modifier.weight(1f))
-                FacebookSignInButton(onClick = onFacebookSignIn, modifier = Modifier.weight(1f))
-            }
+            GoogleSignInButton(onClick = onGoogleSignIn, modifier = Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(14.dp))
 
@@ -197,35 +190,6 @@ private fun GoogleSignInButton(onClick: () -> Unit, modifier: Modifier = Modifie
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp
         )
-    }
-}
-
-@Composable
-private fun FacebookSignInButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val facebookBlue = Color(0xFF1877F2)
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(52.dp),
-        shape = CircleShape,
-        colors = ButtonDefaults.buttonColors(containerColor = facebookBlue)
-    ) {
-        Canvas(modifier = Modifier.size(18.dp)) {
-            val w = size.width
-            val h = size.height
-            drawRect(color = Color.White, size = Size(w * 0.30f, h), topLeft = Offset(w * 0.30f, 0f))
-            drawRect(
-                color = Color.White,
-                topLeft = Offset(w * 0.18f, h * 0.40f),
-                size = Size(w * 0.52f, h * 0.16f)
-            )
-            drawRect(
-                color = Color.White,
-                topLeft = Offset(w * 0.30f, 0f),
-                size = Size(w * 0.42f, h * 0.20f)
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Text("Facebook", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     }
 }
 

@@ -100,7 +100,6 @@ dependencies {
     implementation(libs.mlkit.image.labeling)
     implementation(libs.mlkit.image.labeling.custom)
     implementation(libs.mlkit.face.detection)
-    implementation(libs.facebook.login)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
