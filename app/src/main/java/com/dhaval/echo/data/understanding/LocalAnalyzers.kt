@@ -199,17 +199,23 @@ class LocalTaskAnalyzer @Inject constructor() : MemoryAnalyzer {
 /**
  * Finds time anchors: "tomorrow", "next monday", "in 3 days" — resolved
  * against the capture time into an actual instant.
+ *
+ * The anchor decides *when*; the sentence around it is what the user actually
+ * gets shown, because a reminder titled "tomorrow" says nothing on its own.
  */
 class LocalReminderAnalyzer @Inject constructor() : MemoryAnalyzer {
     override val kinds = setOf(EvidenceKind.REMINDER)
 
     override suspend fun analyze(content: NormalizedContent): List<Evidence> {
         val hint = DateHintParser.firstHint(content.text, content.capturedAt) ?: return emptyList()
+        val sentence = content.text.sentenceContaining(hint.phrase)
         return listOf(
             Evidence(
                 kind = EvidenceKind.REMINDER,
-                value = hint.phrase,
-                evidenceText = content.text.sentenceContaining(hint.phrase),
+                // "Dentist tomorrow at 4pm" is a usable reminder; "tomorrow" is not.
+                // Fall back to the phrase only when the sentence can't be recovered.
+                value = sentence ?: hint.phrase,
+                evidenceText = sentence,
                 confidence = 0.7f,
                 dueAtMillis = hint.atMillis
             )

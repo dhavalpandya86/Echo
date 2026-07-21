@@ -17,6 +17,45 @@ import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 
+private val kindToItem = mapOf(
+    EvidenceKind.TASK to ItemKind.TASK,
+    EvidenceKind.REMINDER to ItemKind.REMINDER,
+    EvidenceKind.DECISION to ItemKind.DECISION
+)
+
+private fun normalize(name: String): String =
+    name.trim().lowercase().replace(Regex("""\s+"""), " ").trim('.', ',', '!', '?', '\'', '"')
+
+/**
+ * Which claims become the memory's item rows, after reconciling analyzers that
+ * describe one commitment from different angles.
+ *
+ * The task analyzer claims the obligation ("Send him the budget file tomorrow")
+ * and already resolves the sentence's date onto it. The reminder analyzer claims
+ * that same sentence's time anchor. Both are correct in isolation, so left alone
+ * a single commitment surfaces as two items — the real one plus an echo whose
+ * only content is the time. When a reminder lands on an instant a task already
+ * covers, the task is strictly more informative: keep it, drop the echo.
+ *
+ * Reconciled here rather than inside an analyzer so the specialists stay
+ * independent of each other, and so the rule also covers TASK/REMINDER pairs
+ * produced by the Claude suite.
+ *
+ * Pure and file-scoped so it can be tested without standing up a Room DAO.
+ */
+internal fun reconcileItemEvidence(evidence: List<Evidence>): List<Evidence> {
+    val taskDueTimes = evidence
+        .filter { it.kind == EvidenceKind.TASK }
+        .mapNotNull { it.dueAtMillis }
+        .toSet()
+
+    return evidence
+        .filter { it.kind in kindToItem }
+        // A reminder with no time of its own is never an echo of a task.
+        .filterNot { it.kind == EvidenceKind.REMINDER && it.dueAtMillis in taskDueTimes }
+        .distinctBy { it.kind to normalize(it.value) }
+}
+
 /**
  * Resolver v1 (Stage 5): identity by normalized name + aliases.
  *
@@ -54,12 +93,6 @@ class LocalEntityResolver @Inject constructor(
         EvidenceKind.ORG to LinkRelation.INVOLVES,
         EvidenceKind.PRODUCT to LinkRelation.INVOLVES,
         EvidenceKind.MOOD to LinkRelation.FELT
-    )
-
-    private val kindToItem = mapOf(
-        EvidenceKind.TASK to ItemKind.TASK,
-        EvidenceKind.REMINDER to ItemKind.REMINDER,
-        EvidenceKind.DECISION to ItemKind.DECISION
     )
 
     override suspend fun resolve(content: NormalizedContent, evidence: List<Evidence>) {
@@ -104,9 +137,7 @@ class LocalEntityResolver @Inject constructor(
             )
         }
 
-        val items = evidence
-            .filter { it.kind in kindToItem }
-            .distinctBy { it.kind to normalize(it.value) }
+        val items = reconcileItemEvidence(evidence)
             .map { ev ->
                 ExtractedItem(
                     id = UUID.randomUUID().toString(),
@@ -187,9 +218,6 @@ class LocalEntityResolver @Inject constructor(
                 entity.aliases.any { normalize(it) == needle }
         }
     }
-
-    private fun normalize(name: String): String =
-        name.trim().lowercase().replace(Regex("""\s+"""), " ").trim('.', ',', '!', '?', '\'', '"')
 
     private companion object {
         const val TAG = "EntityResolver"
