@@ -41,6 +41,18 @@ class Converters {
         return map?.let { Json.encodeToString(it) }
     }
 
+    /** Per-photo captions keyed by image path (DB version 17). */
+    @TypeConverter
+    fun fromCaptionMap(value: String?): Map<String, String>? {
+        if (value.isNullOrBlank()) return null
+        return runCatching { Json.decodeFromString<Map<String, String>>(value) }.getOrNull()
+    }
+
+    @TypeConverter
+    fun toCaptionMap(map: Map<String, String>?): String? {
+        return map?.takeIf { it.isNotEmpty() }?.let { Json.encodeToString(it) }
+    }
+
     @TypeConverter
     fun fromVideoList(value: String?): List<VideoAttachment>? {
         if (value.isNullOrBlank()) return null

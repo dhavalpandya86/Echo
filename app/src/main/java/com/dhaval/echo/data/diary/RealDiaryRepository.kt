@@ -32,6 +32,22 @@ class RealDiaryRepository @Inject constructor(
         }
     }
 
+    override suspend fun setPhotoCaption(entryId: String, photoPath: String, caption: String) {
+        val userId = authRepository.getCurrentUser()?.id ?: return
+        val entry = diaryEntryDao.getEntryById(entryId) ?: return
+        if (entry.userId != userId) return
+        val trimmed = caption.trim()
+        val updated = (entry.photoCaptions ?: emptyMap()).toMutableMap().apply {
+            if (trimmed.isEmpty()) remove(photoPath) else put(photoPath, trimmed)
+        }
+        diaryEntryDao.updateEntry(
+            entry.copy(
+                photoCaptions = updated.takeIf { it.isNotEmpty() },
+                updatedAt = java.time.LocalDateTime.now()
+            )
+        )
+    }
+
     override suspend fun toggleFavorite(id: String) {
         val userId = authRepository.getCurrentUser()?.id ?: return
         val entry = diaryEntryDao.getEntryById(id) ?: return
@@ -89,11 +105,14 @@ class RealDiaryRepository @Inject constructor(
         title: String,
         textContent: String,
         imagePaths: List<String>,
-        videos: List<VideoAttachment>
+        videos: List<VideoAttachment>,
+        date: LocalDateTime?
     ): String {
         val userId = authRepository.getCurrentUser()?.id ?: throw Exception("Not authenticated")
         val id = UUID.randomUUID().toString()
         val now = LocalDateTime.now()
+        // Backdated when adding on a past calendar day; "now" otherwise.
+        val createdAt = date ?: now
         val hasMedia = imagePaths.isNotEmpty() || videos.isNotEmpty()
         val entryType = if (hasMedia) EntryType.MIXED else EntryType.TEXT
         val entry = DiaryEntry(
@@ -101,7 +120,7 @@ class RealDiaryRepository @Inject constructor(
             userId = userId,
             title = title.ifBlank { "Untitled" },
             audioPath = "",
-            createdAt = now,
+            createdAt = createdAt,
             updatedAt = now,
             duration = 0L,
             textContent = textContent,

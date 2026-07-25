@@ -2,12 +2,13 @@ package com.dhaval.echo.ui.auth
 
 import android.content.Context
 import android.util.Log
+import com.dhaval.echo.R
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,20 +16,26 @@ import kotlinx.coroutines.withContext
 class GoogleAuthHelper(private val context: Context) {
     private val credentialManager = CredentialManager.create(context)
 
-    // Actual Web Client ID from Firebase/Google Cloud Console
-    private val WEB_CLIENT_ID = "307035484838-s9cckj4ihba00jhalgkcgqo7hecao0ka.apps.googleusercontent.com"
+    // The web client ID (OAuth client_type 3) for whatever Firebase project this
+    // build targets. Read from the google-services-generated resource so it always
+    // matches google-services.json — hardcoding it broke Google Sign-In the moment
+    // the app switched Firebase projects.
+    private val webClientId: String
+        get() = context.getString(R.string.default_web_client_id)
 
     suspend fun signIn(activityContext: Context): Result<String> = withContext(Dispatchers.IO) {
         Log.d("GoogleAuthHelper", "signIn started with context: ${activityContext::class.java.simpleName}")
         try {
-            val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(WEB_CLIENT_ID)
-                .setAutoSelectEnabled(false)
-                .build()
+            // GetSignInWithGoogleOption is the explicit "Sign in with Google" button
+            // flow: it always presents the account picker with every Google account
+            // on the device. GetGoogleIdOption (the one-tap/bottom-sheet flow) throws
+            // NoCredentialException here when nothing is pre-authorized — which is why
+            // first-time sign-in showed "No Google accounts found".
+            val signInWithGoogleOption: GetSignInWithGoogleOption =
+                GetSignInWithGoogleOption.Builder(webClientId).build()
 
             val request: GetCredentialRequest = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
+                .addCredentialOption(signInWithGoogleOption)
                 .build()
 
             Log.d("GoogleAuthHelper", "Calling getCredential...")

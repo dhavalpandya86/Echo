@@ -16,6 +16,7 @@ import com.dhaval.echo.domain.understanding.MemoryAnalyzer
 import com.dhaval.echo.domain.understanding.MemoryAnalyzerProvider
 import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.PhotoTextExtractor
+import com.dhaval.echo.domain.understanding.PhotoVisualDescriber
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -50,11 +51,6 @@ abstract class UnderstandingModule {
     abstract fun photoTextExtractor(impl: MlKitPhotoTextExtractor): PhotoTextExtractor
 
     @Binds @Singleton
-    abstract fun photoVisualDescriber(
-        impl: com.dhaval.echo.data.understanding.MlKitPhotoVisualDescriber
-    ): com.dhaval.echo.domain.understanding.PhotoVisualDescriber
-
-    @Binds @Singleton
     abstract fun understandingService(impl: RealMemoryUnderstandingService): MemoryUnderstandingService
 
     companion object {
@@ -67,5 +63,19 @@ abstract class UnderstandingModule {
         @Singleton
         fun memoryAnalyzerProvider(aiManager: AIManager): MemoryAnalyzerProvider =
             MemoryAnalyzerProvider { aiManager.getMemoryAnalyzers() }
+
+        /**
+         * Same seam for the Photo modality. A thin delegate rather than a direct
+         * binding, so switching provider or entering a key takes effect on the
+         * next memory instead of the next app launch — and so callers keep
+         * depending on the interface, not on which describer is live.
+         */
+        @Provides
+        @Singleton
+        fun photoVisualDescriber(aiManager: AIManager): PhotoVisualDescriber =
+            object : PhotoVisualDescriber {
+                override suspend fun describe(imagePaths: List<String>) =
+                    aiManager.getPhotoVisualDescriber().describe(imagePaths)
+            }
     }
 }

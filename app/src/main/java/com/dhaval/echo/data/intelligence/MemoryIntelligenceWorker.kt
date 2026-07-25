@@ -32,12 +32,14 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val diaryEntryDao: DiaryEntryDao,
     private val intelligenceDao: IntelligenceDao,
+    private val understandingDao: UnderstandingDao,
     private val aiManager: AIManager,
     private val tagRepository: TagRepository,
     private val understandingService: MemoryUnderstandingService,
     private val photoTextExtractor: com.dhaval.echo.domain.understanding.PhotoTextExtractor,
     private val photoVisualDescriber: com.dhaval.echo.domain.understanding.PhotoVisualDescriber,
-    private val reminderScheduler: com.dhaval.echo.data.reminders.ReminderScheduler
+    private val reminderScheduler: com.dhaval.echo.data.reminders.ReminderScheduler,
+    private val collectionSuggestionService: com.dhaval.echo.data.collections.CollectionSuggestionService
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -70,6 +72,11 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
                 understandingService.understand(normalizedContentFor(entry, sourceText))
                 // Arm notifications for any dated commitments this memory produced.
                 reminderScheduler.scheduleForMemory(entryId)
+                // Tags from the entities the graph just extracted (people, places,
+                // projects…) — specific names, not broad categories.
+                applyEntityTags(entryId, sourceText)
+                // Auto-populate Collections from strong recurring topics/projects.
+                collectionSuggestionService.refresh()
             }.onFailure { Log.e(TAG, "Understanding stage failed for $entryId", it) }
 
             Log.d(TAG, "Intelligence pipeline completed for $entryId")
@@ -163,11 +170,9 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
         }
         intelligenceDao.updateAnalysisResults(entryId, title, summary)
 
-        // 3. Tags
-        runCatching {
-            aiManager.getTagSuggestionService().suggestTags(sourceText).last()
-                .forEach { tagRepository.addTagToEntry(entryId, it) }
-        }.onFailure { Log.w(TAG, "Tag suggestion failed for $entryId", it) }
+        // 3. Tags now come from the entity graph (applyEntityTags), which is only
+        //    populated once understanding runs — so tagging happens after it, in
+        //    doWork. This replaces the old broad-category tags ("Business", "Work").
 
         // 4. Classification
         intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.CLASSIFYING)
@@ -184,25 +189,11 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
             )
         )
 
-        // 5. Memory linking
+        // 5. Memory linking now happens in EmbeddingWorker, from real e5 cosine
+        //    similarity — the entry's own embedding doesn't exist until then.
+        //    (The old classification-keyword linker scored every same-day pair
+        //    the same and marked everything "related"; it's gone.)
         intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.LINKING)
-        val connections = intelligenceDao.getAllClassifications(userId)
-            .filter { it.entryId != entryId }
-            .mapNotNull { other ->
-                val similarity = calculateSimilarity(classification, other)
-                if (similarity > SIMILARITY_THRESHOLD) {
-                    MemoryConnection(
-                        fromEntryId = entryId,
-                        toEntryId = other.entryId,
-                        userId = userId,
-                        similarity = similarity,
-                        connectionReason = "Shared topics or keywords"
-                    )
-                } else null
-            }
-        if (connections.isNotEmpty()) {
-            intelligenceDao.updateMemoryLinks(entryId, connections)
-        }
 
         // 6. Timeline insights
         intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.ANALYZING_TIMELINE)
@@ -226,6 +217,37 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
         }.onFailure { Log.w(TAG, "Timeline analysis failed for $entryId", it) }
 
         intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.COMPLETED)
+    }
+
+    /**
+     * Tags a memory with the specific entities the graph extracted from it —
+     * people, places, projects, topics, orgs, products — instead of the broad
+     * categories the old tag service emitted ("Business", "Work"). Only *stated*
+     * links (not Stage-6 inferences) become tags, so a memory is tagged with what
+     * it actually names. If understanding surfaced no entities, we fall back to
+     * the keyword tag service so the memory isn't left tag-less.
+     */
+    private suspend fun applyEntityTags(entryId: String, sourceText: String) {
+        val names = understandingDao.getLinkedEntitiesOnce(entryId)
+            .asSequence()
+            .filter { !it.inferred }
+            .filter { it.type in TAGGABLE_ENTITY_TYPES }
+            .map { it.name.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .take(MAX_ENTITY_TAGS)
+            .toList()
+
+        if (names.isNotEmpty()) {
+            names.forEach { tagRepository.addTagToEntry(entryId, it) }
+            return
+        }
+
+        // No entities (e.g. a terse memory) — keep the keyword tagger as a floor.
+        runCatching {
+            aiManager.getTagSuggestionService().suggestTags(sourceText).last()
+                .forEach { tagRepository.addTagToEntry(entryId, it) }
+        }.onFailure { Log.w(TAG, "Fallback tag suggestion failed for $entryId", it) }
     }
 
     /** Stage-2 canonical form: after this, source kind no longer matters. */
@@ -253,25 +275,13 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
         title.isBlank() || title == "Untitled" || title == "Untitled Memory" ||
             title == "Memory of the Day" || title.startsWith("Recording ")
 
-    private fun calculateSimilarity(
-        current: com.dhaval.echo.domain.ai.MemoryClassification,
-        other: MemoryClassificationEntity
-    ): Float {
-        val sharedKeywords = current.keywords.intersect(other.keywords.toSet()).size
-        val sharedCategories = current.categories.intersect(other.categories.toSet()).size
-
-        val keywordScore = if (current.keywords.isEmpty()) 0f
-            else sharedKeywords.toFloat() / current.keywords.size
-        val categoryScore = if (current.categories.isEmpty()) 0f
-            else sharedCategories.toFloat() / current.categories.size
-
-        return (keywordScore * 0.6f) + (categoryScore * 0.4f)
-    }
-
     companion object {
         const val KEY_ENTRY_ID = "entryId"
         private const val TAG = "MemoryIntelWorker"
         private const val MAX_ATTEMPTS = 3
-        private const val SIMILARITY_THRESHOLD = 0.3f
+        private const val MAX_ENTITY_TAGS = 8
+        /** Entity-forming kinds worth surfacing as tags (EvidenceKind names). */
+        private val TAGGABLE_ENTITY_TYPES =
+            setOf("PERSON", "PROJECT", "TOPIC", "PLACE", "ORG", "PRODUCT")
     }
 }

@@ -64,6 +64,16 @@ fun ConversationScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // A search bar on top — same shape as Story and Remember — replaces the
+            // old bottom chat input. Ask a reflection; results fill in below.
+            com.dhaval.echo.ui.components.EchoSearchBar(
+                value = uiState.currentQuestion,
+                onValueChange = viewModel::onQuestionChange,
+                placeholder = "What would you like to understand?",
+                onSearch = viewModel::askQuestion,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+
             if (uiState.messages.isEmpty()) {
                 WelcomeView(
                     suggestedQuestions = uiState.suggestedQuestions,
@@ -91,13 +101,6 @@ fun ConversationScreen(
                     }
                 }
             }
-
-            ChatInput(
-                value = uiState.currentQuestion,
-                onValueChange = viewModel::onQuestionChange,
-                onSend = viewModel::askQuestion,
-                isThinking = uiState.isThinking
-            )
         }
     }
 }
@@ -141,19 +144,19 @@ fun WelcomeView(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Column(Modifier.padding(bottom = 4.dp)) {
+            Column {
                 Text(
                     "What would you like to reflect on?",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    "Choose a lens to see how you've been evolving lately — or just ask below.",
+                    "Choose a lens, or just ask in the bar above.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -337,52 +340,3 @@ fun ThinkingIndicator() {
     }
 }
 
-@Composable
-fun ChatInput(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onSend: () -> Unit,
-    isThinking: Boolean
-) {
-    Surface(
-        tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .navigationBarsPadding()
-                .imePadding(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("What would you like to understand?") },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                maxLines = 4,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onSend() }),
-                enabled = !isThinking
-            )
-            
-            IconButton(
-                onClick = onSend,
-                enabled = value.isNotBlank() && !isThinking,
-                colors = IconButtonDefaults.iconButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    disabledContentColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
-                )
-            ) {
-                Icon(Icons.Default.Send, contentDescription = "Send")
-            }
-        }
-    }
-}

@@ -10,13 +10,19 @@ import kotlinx.coroutines.flow.Flow
 interface DiaryRepository {
     fun getEntryById(id: String): Flow<DiaryEntry?>
     suspend fun updateTitle(id: String, title: String)
+
+    /** Set (or clear, when blank) the user's caption for one photo in a memory. */
+    suspend fun setPhotoCaption(entryId: String, photoPath: String, caption: String)
     suspend fun toggleFavorite(id: String)
     suspend fun deleteEntry(id: String)
     suspend fun createTextEntry(
         title: String,
         textContent: String,
         imagePaths: List<String> = emptyList(),
-        videos: List<VideoAttachment> = emptyList()
+        videos: List<VideoAttachment> = emptyList(),
+        /** When set, the memory is dated to this instant (used to add on a past
+         *  calendar day); null means "now". */
+        date: java.time.LocalDateTime? = null
     ): String
 
     // ── Video attachments ────────────────────────────────────────────────

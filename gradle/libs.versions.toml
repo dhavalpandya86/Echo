@@ -1,4 +1,6 @@
 [versions]
+# Prototype only (androidTest): LiteRT-LM for the Gemma 4 evaluation.
+litertlm = "0.14.0"
 agp = "9.3.0"
 coreKtx = "1.19.0"
 junit = "4.13.2"
@@ -79,6 +81,8 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 androidx-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts" }
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 onnxruntime-extensions-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-extensions-android", version.ref = "onnxruntimeExtensions" }
+
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

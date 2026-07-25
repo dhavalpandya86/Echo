@@ -159,7 +159,7 @@ fun EchoNavGraph(
         composable<HomeRoute> {
             HomeScreen(
                 onNavigateToRecord = { navController.navigate(RecordRoute) },
-                onNavigateToTextEntry = { navController.navigate(TextEntryRoute) },
+                onNavigateToTextEntry = { navController.navigate(TextEntryRoute()) },
                 onNavigateToSearch = { navController.navigate(SearchRoute) },
                 onNavigateToCollections = { navController.navigate(CollectionsRoute) },
                 onNavigateToSettings = { navController.navigate(SettingsRoute) },
@@ -211,7 +211,10 @@ fun EchoNavGraph(
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 },
-                onProfileClick = { navController.navigate(SettingsRoute) }
+                onProfileClick = { navController.navigate(SettingsRoute) },
+                onAddOnDate = { epochDay ->
+                    navController.navigate(TextEntryRoute(dateEpochDay = epochDay))
+                }
             )
         }
 
@@ -288,7 +291,7 @@ fun EchoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onEntrySaved = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId)) {
-                        popUpTo(TextEntryRoute) { inclusive = true }
+                        popUpTo<TextEntryRoute> { inclusive = true }
                     }
                 }
             )

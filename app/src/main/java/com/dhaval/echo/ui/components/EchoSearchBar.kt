@@ -17,16 +17,25 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.ImeAction
 
+/**
+ * @param onSearch when non-null, the bar submits on the keyboard's Search action
+ *   (used by Reflect, where the query is asked rather than filtered live). When
+ *   null the bar filters reactively as the user types (Story/Remember).
+ */
 @Composable
 fun EchoSearchBar(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSearch: (() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -73,6 +82,13 @@ fun EchoSearchBar(
         },
         shape = RoundedCornerShape(28.dp),
         interactionSource = interactionSource,
-        textStyle = MaterialTheme.typography.bodyLarge
+        textStyle = MaterialTheme.typography.bodyLarge,
+        singleLine = onSearch != null,
+        keyboardOptions = if (onSearch != null) {
+            KeyboardOptions(imeAction = ImeAction.Search)
+        } else KeyboardOptions.Default,
+        keyboardActions = if (onSearch != null) {
+            KeyboardActions(onSearch = { onSearch() })
+        } else KeyboardActions.Default
     )
 }

@@ -15,6 +15,19 @@ interface AIManager {
     fun switchProvider(providerId: String)
     fun switchSttProvider(providerId: String)
     fun isCapabilitySupported(capability: AICapability): Boolean
+
+    /**
+     * True when a cloud provider is selected *and* has a key — i.e. the LLM
+     * narrative features are available. Screens read this to show or hide the
+     * "add a key to unlock" affordance.
+     */
+    fun hasCloudKey(): Boolean
+
+    /**
+     * The narrative engine behind Remember/Reflect/Story, or null on the free
+     * tier (no key) so callers fall back to their on-device output.
+     */
+    fun getNarrativeService(): NarrativeService?
     
     // Service Accessors
     fun getLanguageDetectionService(): LanguageDetectionService
@@ -37,6 +50,12 @@ interface AIManager {
      * heuristics otherwise.
      */
     fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer>
+
+    /**
+     * Who describes a memory's photos. Cloud vision only when the user has
+     * supplied a key for it; on-device labelling otherwise.
+     */
+    fun getPhotoVisualDescriber(): com.dhaval.echo.domain.understanding.PhotoVisualDescriber
 }
 
 enum class AICapability {

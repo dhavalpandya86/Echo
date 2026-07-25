@@ -31,10 +31,12 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val diaryEntryDao: DiaryEntryDao,
+    private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao,
     private val understandingService: MemoryUnderstandingService,
     private val tagRepository: TagRepository,
     private val aiManager: AIManager,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val collectionSuggestionService: com.dhaval.echo.data.collections.CollectionSuggestionService
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -57,8 +59,16 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
             }.onFailure { Log.e(TAG, "Backfill understanding failed for ${entry.id}", it) }
             runCatching { refreshTags(entry.id, text) }
                 .onFailure { Log.w(TAG, "Backfill tag refresh failed for ${entry.id}", it) }
+            // Recompute the e5 embedding + related-memory links for this entry.
+            EmbeddingWorker.enqueue(applicationContext, entry.id)
             processed++
         }
+
+        // Now that the graph is rebuilt, auto-populate Collections from recurring
+        // topics/projects (Worlds derive from the same graph, on demand).
+        runCatching { collectionSuggestionService.refresh() }
+            .onFailure { Log.w(TAG, "Backfill collection curation failed", it) }
+
         Log.i(TAG, "Understanding backfill done: $processed processed, $skipped without text")
         return Result.success()
     }
@@ -73,14 +83,39 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
         if (existing.containsAll(LEGACY_PLACEHOLDER_TAGS)) {
             LEGACY_PLACEHOLDER_TAGS.forEach { tagRepository.removeTagFromEntry(entryId, it) }
         }
-        aiManager.getTagSuggestionService().suggestTags(text).last()
-            .forEach { tagRepository.addTagToEntry(entryId, it) }
+
+        // Prefer the specific entities the graph just extracted (people, places,
+        // projects…) — the same source the live pipeline now tags from. Keyword
+        // tags are only a floor for memories that surfaced no entities.
+        val entityNames = understandingDao.getLinkedEntitiesOnce(entryId)
+            .asSequence()
+            .filter { !it.inferred && it.type in TAGGABLE_ENTITY_TYPES }
+            .map { it.name.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .take(MAX_ENTITY_TAGS)
+            .toList()
+
+        if (entityNames.isNotEmpty()) {
+            entityNames.forEach { tagRepository.addTagToEntry(entryId, it) }
+        } else {
+            aiManager.getTagSuggestionService().suggestTags(text).last()
+                .forEach { tagRepository.addTagToEntry(entryId, it) }
+        }
     }
 
-    /** Reuse stored transcript + written text only — the heavy stages already ran. */
+    /**
+     * Reuse stored text — no re-transcription/re-OCR. Includes the photo visual
+     * summary ("Echo sees…") and the user's own photo captions so photo-only
+     * memories still contribute people/places to the entity graph (→ Worlds),
+     * instead of being skipped for having no transcript.
+     */
     private fun sourceTextOf(entry: DiaryEntry): String = listOfNotNull(
         entry.transcript?.takeIf { it.isNotBlank() },
-        entry.textContent?.takeIf { it.isNotBlank() }
+        entry.textContent?.takeIf { it.isNotBlank() },
+        entry.visualSummary?.takeIf { it.isNotBlank() },
+        entry.photoCaptions?.values?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
+            ?.joinToString("\n")
     ).joinToString("\n\n").trim()
 
     private fun normalizedContentFor(entry: DiaryEntry, userId: String, text: String): NormalizedContent {
@@ -105,6 +140,10 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
 
         /** The exact tags the old FakeTagSuggestionService emitted for every memory. */
         private val LEGACY_PLACEHOLDER_TAGS = listOf("Personal", "Reflection", "Voice")
+
+        private const val MAX_ENTITY_TAGS = 8
+        private val TAGGABLE_ENTITY_TYPES =
+            setOf("PERSON", "PROJECT", "TOPIC", "PLACE", "ORG", "PRODUCT")
 
         /** Enqueue the one-shot backfill; KEEP so repeated taps don't pile up. */
         fun enqueue(context: Context) {

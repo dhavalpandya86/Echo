@@ -113,7 +113,9 @@ fun TextEntryScreen(
     Scaffold(
         topBar = {
             EchoTopBar(
-                title = "New Entry",
+                title = uiState.entryDate?.let {
+                    "New Entry · " + it.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
+                } ?: "New Entry",
                 onBackClick = onNavigateBack,
                 actions = {
                     if (uiState.isSaving) {

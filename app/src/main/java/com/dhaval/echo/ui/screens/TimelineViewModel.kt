@@ -35,10 +35,44 @@ data class TimelineUiState(
 class TimelineViewModel @Inject constructor(
     private val repository: TimelineRepository,
     private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
-    private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao
+    private val intelligenceDao: com.dhaval.echo.data.db.IntelligenceDao,
+    private val aiManager: com.dhaval.echo.domain.ai.AIManager,
+    private val phoneCalendarRepository: com.dhaval.echo.data.calendar.PhoneCalendarRepository
 ) : ViewModel() {
 
+    /**
+     * The user's device-calendar events (Google/Samsung/phone), loaded once
+     * permission is granted, shown alongside memories. Empty until then.
+     */
+    private val _phoneEvents =
+        MutableStateFlow<List<com.dhaval.echo.data.calendar.PhoneEvent>>(emptyList())
+    val phoneEvents: StateFlow<List<com.dhaval.echo.data.calendar.PhoneEvent>> = _phoneEvents
+
+    fun hasCalendarPermission(): Boolean = phoneCalendarRepository.hasPermission()
+
+    /** Load ~a year either side of today so month/year/day views all have data. */
+    fun loadPhoneCalendar() {
+        if (!phoneCalendarRepository.hasPermission()) return
+        viewModelScope.launch {
+            val zone = java.time.ZoneId.systemDefault()
+            val start = LocalDate.now().minusMonths(13).atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = LocalDate.now().plusMonths(13).atStartOfDay(zone).toInstant().toEpochMilli()
+            _phoneEvents.value = phoneCalendarRepository.eventsBetween(start, end)
+        }
+    }
+
     private val searchQuery = MutableStateFlow("")
+
+    /**
+     * The "story so far": an AI-written running narration of recent memories +
+     * mood, shown above the calendar. Null on the free tier (no key) — the header
+     * then falls back to a simple count line. Cached in [lastNarrativeKey] and
+     * regenerated only when the recent-memory signature changes (a new memory, or
+     * a new day), so it updates daily without calling the LLM on every recompose.
+     */
+    private val _storyNarrative = MutableStateFlow<String?>(null)
+    val storyNarrative: StateFlow<String?> = _storyNarrative
+    private var lastNarrativeKey: String? = null
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<TimelineUiState> = combine(
@@ -80,8 +114,54 @@ class TimelineViewModel @Inject constructor(
             initialValue = TimelineUiState(isLoading = true)
         )
 
+    // Declared after uiState so the field is initialised before the collector
+    // starts (an init block above uiState would see it as null → crash on launch).
+    init {
+        viewModelScope.launch {
+            uiState.collect { maybeGenerateNarrative(it) }
+        }
+    }
+
+    /** The calendar day the user tapped, for the "add on this day" affordance. */
+    private val _selectedDate = MutableStateFlow(LocalDate.now())
+    val selectedDate: StateFlow<LocalDate> = _selectedDate
+
+    fun onDateSelected(date: LocalDate) {
+        _selectedDate.value = date
+    }
+
     fun onSearchQueryChange(query: String) {
         searchQuery.value = query
+    }
+
+    private suspend fun maybeGenerateNarrative(state: TimelineUiState) {
+        // Only narrate the unfiltered story, and only when there's something to tell.
+        if (state.searchQuery.isNotEmpty() || state.days.isEmpty()) return
+
+        val recentDays = state.days.take(RECENT_DAYS)
+        val count = recentDays.sumOf { day -> day.parts.sumOf { it.entries.size } }
+        val key = "${recentDays.firstOrNull()?.date}:$count"
+        if (key == lastNarrativeKey) return
+        lastNarrativeKey = key
+
+        val narrator = aiManager.getNarrativeService()
+        if (narrator == null) {
+            _storyNarrative.value = null // free tier → header shows a simple line
+            return
+        }
+
+        val block = recentDays.joinToString("\n\n") { day ->
+            val titles = day.parts.flatMap { it.entries }
+                .joinToString("; ") { it.title.ifBlank { "Untitled" } }
+            "• ${day.date}: $titles"
+        }
+        _storyNarrative.value = narrator.narrate(
+            instruction = "Write a short 'story so far' for the top of the user's timeline — 2 " +
+                "to 3 sentences narrating what's been happening across these recent days and the " +
+                "mood of it, in a warm second-person voice. Ground it only in these memories.",
+            memoriesBlock = block,
+            maxTokens = 280
+        )
     }
 
     fun toggleFavorite(entryId: String) {
@@ -105,5 +185,10 @@ class TimelineViewModel @Inject constructor(
         in 5..11 -> DayPart.MORNING
         in 12..16 -> DayPart.AFTERNOON
         else -> DayPart.EVENING
+    }
+
+    private companion object {
+        /** How many recent active days the story-so-far narration draws from. */
+        const val RECENT_DAYS = 7
     }
 }

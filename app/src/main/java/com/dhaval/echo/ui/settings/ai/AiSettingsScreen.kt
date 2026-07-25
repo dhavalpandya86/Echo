@@ -131,7 +131,7 @@ fun AiSettingsScreen(
                             value = apiKeyInput,
                             onValueChange = { apiKeyInput = it },
                             label = { Text("API Key") },
-                            placeholder = { Text("sk-ant-...") },
+                            placeholder = { Text(apiKeyPlaceholder(currentProvider.id)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
@@ -322,10 +322,23 @@ private fun CapabilityItem(label: String, isSupported: Boolean) {
 private fun requiresApiKey(providerId: String) = providerId in listOf("claude", "openai", "gemini")
 
 private fun apiKeyDescription(providerId: String) = when (providerId) {
-    "claude" -> "Get your key at console.anthropic.com"
-    "openai" -> "Get your key at platform.openai.com"
-    "gemini" -> "Get your key at aistudio.google.com"
+    // Say what changes for the user, not just where to get the key: choosing a
+    // cloud provider is the one setting that sends their photos off the device.
+    "claude" -> "Get your key at console.anthropic.com. Your memories and photos " +
+        "are sent to Anthropic for processing."
+    "openai" -> "Get your key at platform.openai.com. Your memories and photos " +
+        "are sent to OpenAI for processing."
+    "gemini" -> "Get your key at aistudio.google.com. Your memories and photos " +
+        "are sent to Google for processing."
     else -> ""
+}
+
+/** Each provider stamps its keys differently; showing the wrong prefix invites a paste of the wrong key. */
+private fun apiKeyPlaceholder(providerId: String) = when (providerId) {
+    "claude" -> "sk-ant-..."
+    "openai" -> "sk-..."
+    "gemini" -> "AIza..."
+    else -> "API key"
 }
 
 @Composable

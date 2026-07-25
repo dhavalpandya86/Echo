@@ -44,7 +44,7 @@ class ClaudeMemoryAnalyzer(
         }
 
         return try {
-            val raw = callClaude(apiKey, userMessage, SYSTEM_PROMPT, maxTokens = 1024)
+            val raw = callClaude(apiKey, userMessage, EvidenceExtraction.SYSTEM_PROMPT, maxTokens = 1024)
             val evidence = ClaudeEvidenceParser.parse(raw, content.capturedAt)
             Log.d(TAG, "Claude extracted ${evidence.size} evidence items for ${content.memoryId}")
             evidence
@@ -64,29 +64,6 @@ class ClaudeMemoryAnalyzer(
 
     private companion object {
         const val TAG = "ClaudeMemoryAnalyzer"
-
-        val SYSTEM_PROMPT = """
-            You are the extraction engine inside Echo, a personal memory app. Read the one memory the
-            user captured and extract structured facts about it.
-
-            Return ONLY a JSON object — no prose, no markdown fences — of exactly this shape:
-            {"evidence":[{"kind":"<KIND>","value":"<text>","quote":"<verbatim span>","confidence":<0..1>,"due":"<ISO-8601, optional>"}]}
-
-            KIND is one of: PERSON, PROJECT, TOPIC, PLACE, ORG, PRODUCT, TASK, REMINDER, MOOD, DECISION.
-
-            Rules:
-            - PERSON/PROJECT/PLACE/ORG/PRODUCT/TOPIC: use the entity's canonical name as `value`
-              (e.g. "Raj", "Oceanis"). Emit one object per distinct entity.
-            - TASK: something the user intends to do; `value` is an imperative phrase
-              ("Call Raj about the Oceanis logo").
-            - REMINDER: a time-anchored prompt. TASK and REMINDER may include `due`.
-            - MOOD: a single word for an emotion the user actually expresses ("Excited"). Never
-              invent a neutral or default mood when none is stated.
-            - DECISION: a choice the user states they have made.
-            - `quote` must be a verbatim span copied from the memory. `confidence` is how sure you are.
-            - Resolve relative dates ("tomorrow", "next week") against the capture time the user gives.
-            - Omit any kind the memory does not contain. An empty {"evidence":[]} is valid and honest.
-        """.trimIndent()
     }
 }
 

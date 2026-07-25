@@ -49,7 +49,67 @@ internal suspend fun callClaude(
             }
         }
     }
+    return postToClaude(apiKey, body)
+}
 
+/**
+ * The same call with images attached, for the Photo modality.
+ *
+ * Images go *before* the question in the content array — Claude attends to a
+ * question asked after the evidence it refers to. [jsonSchema], when given,
+ * constrains the reply through `output_config.format` so the caller can parse it
+ * without defending against prose wrapped around the JSON.
+ */
+internal suspend fun callClaudeWithImages(
+    apiKey: String,
+    base64Images: List<String>,
+    userMessage: String,
+    systemPrompt: String = "",
+    maxTokens: Int = 1024,
+    jsonSchema: JsonObject? = null
+): String {
+    require(base64Images.isNotEmpty()) { "callClaudeWithImages needs at least one image" }
+
+    val body = buildJsonObject {
+        put("model", CLAUDE_MODEL)
+        put("max_tokens", maxTokens)
+        if (systemPrompt.isNotBlank()) put("system", systemPrompt)
+        if (jsonSchema != null) {
+            putJsonObject("output_config") {
+                putJsonObject("format") {
+                    put("type", "json_schema")
+                    put("schema", jsonSchema)
+                }
+            }
+        }
+        putJsonArray("messages") {
+            addJsonObject {
+                put("role", "user")
+                putJsonArray("content") {
+                    base64Images.forEach { encoded ->
+                        addJsonObject {
+                            put("type", "image")
+                            putJsonObject("source") {
+                                put("type", "base64")
+                                // Re-encoded to JPEG before upload, so this always holds.
+                                put("media_type", "image/jpeg")
+                                put("data", encoded)
+                            }
+                        }
+                    }
+                    addJsonObject {
+                        put("type", "text")
+                        put("text", userMessage)
+                    }
+                }
+            }
+        }
+    }
+    return postToClaude(apiKey, body)
+}
+
+/** Shared transport: headers, refusal check, and first-text-block extraction. */
+private suspend fun postToClaude(apiKey: String, body: JsonObject): String {
     val request = Request.Builder()
         .url(CLAUDE_API_URL)
         .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))

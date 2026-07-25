@@ -110,7 +110,11 @@ fun EntryDetailsScreen(
                     // Image gallery for entries with photos
                     if (!it.imagePaths.isNullOrEmpty()) {
                         Spacer(modifier = Modifier.height(24.dp))
-                        ImageGallerySection(it.imagePaths)
+                        ImageGallerySection(
+                            imagePaths = it.imagePaths,
+                            captions = it.photoCaptions,
+                            onSaveCaption = viewModel::setPhotoCaption
+                        )
                     }
 
                     // What Echo saw in the photos (on-device labels + place).
@@ -187,14 +191,18 @@ fun EntryDetailsScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
-                    
-                    TranscriptSection(
-                        transcript = it.transcription,
-                        transcriptionStatus = it.transcriptionStatus,
-                        analysisStatus = it.analysisStatus
-                    )
-                    
+                    // A transcript only makes sense for a voice memo. On a photo or
+                    // text memory there is no audio, so the section (and its
+                    // "will appear here once processed" placeholder) is just noise.
+                    if (it.audioPath.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        TranscriptSection(
+                            transcript = it.transcription,
+                            transcriptionStatus = it.transcriptionStatus,
+                            analysisStatus = it.analysisStatus
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(48.dp))
                 }
             }
@@ -243,7 +251,14 @@ private fun TextContentSection(text: String) {
 }
 
 @Composable
-private fun ImageGallerySection(imagePaths: List<String>) {
+private fun ImageGallerySection(
+    imagePaths: List<String>,
+    captions: Map<String, String> = emptyMap(),
+    onSaveCaption: ((path: String, caption: String) -> Unit)? = null
+) {
+    // Which photo the full-screen viewer is showing; null = closed.
+    var viewerIndex by remember { mutableStateOf<Int?>(null) }
+
     Column {
         Text(
             text = "Photos",
@@ -261,12 +276,13 @@ private fun ImageGallerySection(imagePaths: List<String>) {
                         if (index < imagePaths.size) {
                             AsyncImage(
                                 model = imagePaths[index],
-                                contentDescription = null,
+                                contentDescription = "Photo ${index + 1}",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(1f)
                                     .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewerIndex = index }
                             )
                         } else {
                             Spacer(Modifier.weight(1f))
@@ -275,6 +291,16 @@ private fun ImageGallerySection(imagePaths: List<String>) {
                 }
             }
         }
+    }
+
+    viewerIndex?.let { start ->
+        PhotoViewerDialog(
+            imagePaths = imagePaths,
+            initialIndex = start,
+            onDismiss = { viewerIndex = null },
+            captionFor = { path -> captions[path].orEmpty() },
+            onSaveCaption = onSaveCaption
+        )
     }
 }
 

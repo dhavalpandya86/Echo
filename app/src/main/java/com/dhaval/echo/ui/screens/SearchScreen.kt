@@ -39,6 +39,7 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val aiAnswer by viewModel.aiAnswer.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -85,10 +86,19 @@ fun SearchScreen(
                                 item { EchoConnectionCard(conn, onOpen = { onEntryClick(conn.memoryId) }) }
                             }
                         }
+                        // Echo's written answer to the query, and the "ask" affordance.
+                        if (state.filter.query.isNotEmpty() && state.results.isNotEmpty()) {
+                            item {
+                                AskEchoSection(
+                                    answer = aiAnswer,
+                                    onAsk = viewModel::askEcho
+                                )
+                            }
+                        }
                         if (state.results.isNotEmpty()) {
                             item {
                                 Text(
-                                    "Memories",
+                                    if (aiAnswer is AiAnswerState.Ready) "Memories Echo used" else "Memories",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -141,6 +151,87 @@ fun SearchScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Echo's synthesised answer to the query, above the memories it drew from.
+ * Key-gated: the button is always offered, but with no cloud key it resolves to
+ * a gentle "add a key" prompt rather than a paragraph.
+ */
+@Composable
+private fun AskEchoSection(answer: AiAnswerState, onAsk: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "ASK ECHO",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+
+            when (answer) {
+                is AiAnswerState.Ready -> Text(
+                    answer.text,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                AiAnswerState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Echo is thinking…", style = MaterialTheme.typography.bodyMedium)
+                }
+                AiAnswerState.NeedsKey -> Text(
+                    "Add an AI key in Settings and Echo will write you an answer from these memories.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                AiAnswerState.Failed -> Text(
+                    "I couldn't put an answer together just now. The memories below are what I found.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                AiAnswerState.Idle -> Surface(
+                    onClick = onAsk,
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primary
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Ask Echo about this",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }

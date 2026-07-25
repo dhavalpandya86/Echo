@@ -29,7 +29,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ExtractedItem::class,
         EntityRelationship::class
     ],
-    version = 16,
+    version = 18,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -44,6 +44,29 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Auto-suggested collections: link an AI-generated collection back to the
+         * topic/project entity it was built around, so the curator updates the same
+         * collection on each run rather than making duplicates. Additive nullable
+         * column; manual collections leave it null.
+         */
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `collections` ADD COLUMN `sourceEntityId` TEXT")
+            }
+        }
+
+        /**
+         * Per-photo captions: the user's own words about a photo, stored as a JSON
+         * map keyed by image path. Additive nullable column; existing memories have
+         * no captions until the user writes one.
+         */
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `diary_entries` ADD COLUMN `photoCaptions` TEXT")
+            }
+        }
 
         /**
          * Photo understanding: the on-device "Echo sees…" summary (image labels +

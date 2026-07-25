@@ -91,7 +91,8 @@ class EntryDetailsViewModel @Inject constructor(
                     imagePaths = entry.imagePaths,
                     entryType = entry.entryType,
                     videos = entry.videos.orEmpty(),
-                    visualSummary = entry.visualSummary
+                    visualSummary = entry.visualSummary,
+                    photoCaptions = entry.photoCaptions.orEmpty()
                 ),
                 isLoading = false,
                 formattedDate = entry.createdAt.format(dateFormatter),
@@ -128,6 +129,12 @@ class EntryDetailsViewModel @Inject constructor(
     fun updateTitle(newTitle: String) {
         viewModelScope.launch {
             diaryRepository.updateTitle(entryId, newTitle)
+        }
+    }
+
+    fun setPhotoCaption(photoPath: String, caption: String) {
+        viewModelScope.launch {
+            diaryRepository.setPhotoCaption(entryId, photoPath, caption)
         }
     }
 

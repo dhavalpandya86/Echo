@@ -66,7 +66,10 @@ object ConversationRoute
 data class CollectionDetailsRoute(val collectionId: String)
 
 @Serializable
-object TextEntryRoute
+data class TextEntryRoute(
+    /** Epoch-day the new memory should be dated to (from the calendar); null = today. */
+    val dateEpochDay: Long? = null
+)
 
 // Memory Understanding Engine surfaces (MU-5)
 @Serializable

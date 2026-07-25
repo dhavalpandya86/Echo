@@ -9,9 +9,17 @@ data class VisualUnderstanding(
     val labels: List<String> = emptyList(),   // e.g. "Beach", "Sunset", "Food"
     val places: List<String> = emptyList(),    // e.g. "Goa" (from EXIF GPS)
     val faceCount: Int = 0,                     // people detected across the photos
-    val smiling: Boolean = false                // most detected faces are smiling
+    val smiling: Boolean = false,               // most detected faces are smiling
+    /**
+     * A sentence describing the scene, when a provider can actually write one.
+     * On-device labelling cannot — it yields disconnected nouns ("Forklift,
+     * Carton") — so this stays null there and is filled only by a cloud model
+     * the user has opted into.
+     */
+    val description: String? = null
 ) {
-    val isEmpty: Boolean get() = labels.isEmpty() && places.isEmpty() && faceCount == 0
+    val isEmpty: Boolean
+        get() = labels.isEmpty() && places.isEmpty() && faceCount == 0 && description.isNullOrBlank()
 
     /** "2 people, smiling" / "1 person" / null. */
     private fun peoplePhrase(): String? = when {
@@ -23,6 +31,11 @@ data class VisualUnderstanding(
     /** Companion-voice one-liner for the "Echo sees…" line, or null if nothing. */
     fun asSummary(): String? {
         if (isEmpty) return null
+        // A real sentence beats a list of nouns, so it stands on its own when present.
+        description?.takeIf { it.isNotBlank() }?.let { sentence ->
+            return if (places.isEmpty()) sentence
+            else "$sentence · in ${places.joinToString(", ")}"
+        }
         val parts = mutableListOf<String>()
         peoplePhrase()?.let { parts += it }
         if (labels.isNotEmpty()) parts += labels.joinToString(", ")
@@ -37,8 +50,13 @@ data class VisualUnderstanding(
      */
     fun asSourceText(): String {
         val parts = mutableListOf<String>()
-        if (faceCount > 0) parts += "Photo shows ${if (faceCount == 1) "a person" else "$faceCount people"}."
-        if (labels.isNotEmpty()) parts += "Photo shows ${labels.joinToString(", ")}."
+        // The sentence carries the people and objects already, so the derived
+        // phrases below would only repeat it back to the analyzers.
+        description?.takeIf { it.isNotBlank() }?.let { parts += it }
+        if (description.isNullOrBlank()) {
+            if (faceCount > 0) parts += "Photo shows ${if (faceCount == 1) "a person" else "$faceCount people"}."
+            if (labels.isNotEmpty()) parts += "Photo shows ${labels.joinToString(", ")}."
+        }
         if (places.isNotEmpty()) parts += "Taken in ${places.joinToString(", ")}."
         return parts.joinToString(" ")
     }

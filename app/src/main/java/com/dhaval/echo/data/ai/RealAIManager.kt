@@ -3,6 +3,8 @@ package com.dhaval.echo.data.ai
 import android.content.Context
 import com.dhaval.echo.data.preferences.AiPreferences
 import com.dhaval.echo.data.understanding.ClaudeMemoryAnalyzer
+import com.dhaval.echo.data.understanding.CloudMemoryAnalyzer
+import com.dhaval.echo.data.understanding.EvidenceExtraction
 import com.dhaval.echo.domain.ai.*
 import com.dhaval.echo.domain.auth.AuthRepository
 import dagger.Lazy
@@ -30,7 +32,8 @@ class RealAIManager @Inject constructor(
     private val aiPreferences: AiPreferences,
     private val sttEngine: com.dhaval.echo.domain.transcription.SpeechToTextEngine,
     private val embeddingEngine: com.dhaval.echo.domain.embeddings.EmbeddingEngine,
-    private val localMemoryAnalyzers: Set<@JvmSuppressWildcards com.dhaval.echo.domain.understanding.MemoryAnalyzer>
+    private val localMemoryAnalyzers: Set<@JvmSuppressWildcards com.dhaval.echo.domain.understanding.MemoryAnalyzer>,
+    private val localPhotoVisualDescriber: com.dhaval.echo.data.understanding.MlKitPhotoVisualDescriber
 ) : AIManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -125,25 +128,57 @@ class RealAIManager @Inject constructor(
 
     override fun getLanguageDetectionService(): LanguageDetectionService = FakeLanguageDetectionService()
 
-    override fun getTranscriptionService(): TranscriptionService =
-        object : TranscriptionService {
+    override fun getTranscriptionService(): TranscriptionService {
+        val onDevice = object : TranscriptionService {
             override fun transcribe(audioPath: String): Flow<TranscriptionResult> = flow {
                 val result = sttEngine.transcribe(audioPath)
-                emit(TranscriptionResult(
-                    text = result.transcript,
-                    isFinal = true
-                ))
+                emit(TranscriptionResult(text = result.transcript, isFinal = true))
             }
         }
+        // With an OpenAI key, transcribe in the cloud — its model detects the
+        // language (Gujarati, Hindi, English…) and returns the right script,
+        // degrading to on-device Whisper on any failure. Other providers don't
+        // expose an audio-transcription endpoint here, so they use on-device.
+        return if (_currentProvider.value.id == "openai" && openAiApiKey.isNotBlank()) {
+            CloudTranscriptionService(onDevice) { file -> callOpenAITranscription(openAiApiKey, file) }
+        } else {
+            onDevice
+        }
+    }
 
     override fun getSpeechToTextEngine(): com.dhaval.echo.domain.transcription.SpeechToTextEngine = sttEngine
 
-    override fun getSummaryService(): SummaryService =
-        when (_currentProvider.value.id) {
-            "local" -> LocalSummarizerService()
-            "claude" -> if (claudeApiKey.isNotBlank()) ClaudeSummaryService(claudeApiKey) else FakeSummaryService()
-            else -> FakeSummaryService()
+    /**
+     * A cloud text completion bound to the current provider + key, or null on the
+     * free tier. Each provider folds Echo's system prompt in the way its API
+     * wants (Claude system field, OpenAI developer turn, Gemini prepended text).
+     * This is the single seam every cloud text feature routes through.
+     */
+    private fun textCompleter(): CloudTextCompleter? = when (_currentProvider.value.id) {
+        "claude" -> claudeApiKey.takeIf { it.isNotBlank() }?.let { key ->
+            CloudTextCompleter { prompt, max -> callClaude(key, prompt, ECHO_SYSTEM_PROMPT, max) }
         }
+        "openai" -> openAiApiKey.takeIf { it.isNotBlank() }?.let { key ->
+            CloudTextCompleter { prompt, max -> callOpenAI(key, prompt, ECHO_SYSTEM_PROMPT, max) }
+        }
+        "gemini" -> geminiApiKey.takeIf { it.isNotBlank() }?.let { key ->
+            CloudTextCompleter { prompt, _ -> callGemini(key, "$ECHO_SYSTEM_PROMPT\n\n$prompt") }
+        }
+        else -> null
+    }
+
+    override fun hasCloudKey(): Boolean = textCompleter() != null
+
+    override fun getNarrativeService(): com.dhaval.echo.domain.ai.NarrativeService? =
+        textCompleter()?.let { CloudNarrativeService(it) }
+
+    override fun getSummaryService(): SummaryService {
+        // Cloud when a key is set (real LLM summary, degrading to the on-device
+        // extractive summary on failure); on-device otherwise. No more Fake.
+        val completer = textCompleter()
+        return if (completer != null) CloudSummaryService(LocalSummarizerService(), completer)
+        else LocalSummarizerService()
+    }
 
     override fun getTitleGenerationService(): TitleGenerationService =
         when (_currentProvider.value.id) {
@@ -186,27 +221,103 @@ class RealAIManager @Inject constructor(
 
     override fun getConversationService(): ConversationService =
         when (_currentProvider.value.id) {
-            "local" -> RealConversationService(memoryContextBuilder.get(), conversationRepository)
             "claude" -> if (claudeApiKey.isNotBlank()) {
                 ClaudeConversationService(claudeApiKey, memoryContextBuilder.get(), conversationRepository)
             } else {
-                FakeConversationService()
+                RealConversationService(memoryContextBuilder.get(), conversationRepository, this)
             }
-            else -> FakeConversationService()
+            // RealConversationService now talks back through the cloud narrative
+            // engine when a key exists (OpenAI/Gemini), and degrades to its
+            // on-device template otherwise — so it's the right service for local
+            // and every keyed cloud provider. No more FakeConversationService.
+            else -> RealConversationService(memoryContextBuilder.get(), conversationRepository, this)
         }
 
-    override fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer> =
-        when (_currentProvider.value.id) {
-            // Claude selected with a key → one structured-output call, degrading
-            // to the local heuristics on failure (see ClaudeMemoryAnalyzer).
+    override fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer> {
+        val local = localMemoryAnalyzers.toList()
+        // A keyed cloud provider does one structured-output extraction call per
+        // memory (reliable people/places/projects → populated Worlds), degrading
+        // to the local heuristics on failure. No key → on-device.
+        return when (_currentProvider.value.id) {
             "claude" -> if (claudeApiKey.isNotBlank()) {
-                listOf(ClaudeMemoryAnalyzer(claudeApiKey, localMemoryAnalyzers.toList()))
-            } else {
-                localMemoryAnalyzers.toList()
-            }
-            // Local and any not-yet-wired provider → on-device heuristics.
-            else -> localMemoryAnalyzers.toList()
+                listOf(ClaudeMemoryAnalyzer(claudeApiKey, local))
+            } else local
+            "openai" -> if (openAiApiKey.isNotBlank()) {
+                listOf(CloudMemoryAnalyzer(local) { msg ->
+                    callOpenAI(openAiApiKey, msg, EvidenceExtraction.SYSTEM_PROMPT, maxOutputTokens = 1024)
+                })
+            } else local
+            "gemini" -> if (geminiApiKey.isNotBlank()) {
+                listOf(CloudMemoryAnalyzer(local) { msg ->
+                    callGemini(geminiApiKey, "${EvidenceExtraction.SYSTEM_PROMPT}\n\n$msg")
+                })
+            } else local
+            else -> local
         }
+    }
+
+    /**
+     * Cloud vision for whichever of the three the user trusts enough to give a
+     * key to; on-device otherwise. Each branch passes the on-device describer in
+     * as the fallback, so a failed, refused, or unaffordable call still leaves
+     * the memory with labels and a place rather than nothing.
+     *
+     * Only the transport differs between providers — prompt, schema, encoding
+     * and parsing all live in CloudPhotoVisualDescriber.
+     */
+    override fun getPhotoVisualDescriber(): com.dhaval.echo.domain.understanding.PhotoVisualDescriber {
+        val describer = com.dhaval.echo.data.understanding.CloudPhotoVisualDescriber
+        return when (_currentProvider.value.id) {
+            "claude" -> if (claudeApiKey.isBlank()) localPhotoVisualDescriber else {
+                com.dhaval.echo.data.understanding.CloudPhotoVisualDescriber(
+                    fallback = localPhotoVisualDescriber,
+                    providerTag = "Claude"
+                ) { images, schema ->
+                    callClaudeWithImages(
+                        apiKey = claudeApiKey,
+                        base64Images = images,
+                        userMessage = describer.USER_PROMPT,
+                        systemPrompt = describer.SYSTEM_PROMPT,
+                        maxTokens = 512,
+                        jsonSchema = schema
+                    )
+                }
+            }
+
+            "openai" -> if (openAiApiKey.isBlank()) localPhotoVisualDescriber else {
+                com.dhaval.echo.data.understanding.CloudPhotoVisualDescriber(
+                    fallback = localPhotoVisualDescriber,
+                    providerTag = "OpenAI"
+                ) { images, schema ->
+                    callOpenAIWithImages(
+                        apiKey = openAiApiKey,
+                        base64Images = images,
+                        // No separate system field on this path.
+                        userMessage = "${describer.SYSTEM_PROMPT}\n\n${describer.USER_PROMPT}",
+                        maxOutputTokens = 512,
+                        jsonSchema = schema,
+                        schemaName = "photo_understanding"
+                    )
+                }
+            }
+
+            "gemini" -> if (geminiApiKey.isBlank()) localPhotoVisualDescriber else {
+                com.dhaval.echo.data.understanding.CloudPhotoVisualDescriber(
+                    fallback = localPhotoVisualDescriber,
+                    providerTag = "Gemini"
+                ) { images, schema ->
+                    callGeminiWithImages(
+                        apiKey = geminiApiKey,
+                        base64Images = images,
+                        userMessage = "${describer.SYSTEM_PROMPT}\n\n${describer.USER_PROMPT}",
+                        jsonSchema = schema
+                    )
+                }
+            }
+
+            else -> localPhotoVisualDescriber
+        }
+    }
 }
 
 private data class SimpleSTTProvider(

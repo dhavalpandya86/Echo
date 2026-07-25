@@ -27,7 +27,9 @@ data class TimelineEntry(
     val entryType: String = "VOICE",
     val videos: List<VideoAttachment> = emptyList(),
     /** On-device "Echo sees…" summary of the memory's photos. */
-    val visualSummary: String? = null
+    val visualSummary: String? = null,
+    /** User-written captions keyed by photo path. */
+    val photoCaptions: Map<String, String> = emptyMap()
 )
 
 /**

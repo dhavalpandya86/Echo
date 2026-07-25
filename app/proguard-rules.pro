@@ -39,6 +39,17 @@
 # Workers are constructed by the framework, not by any call site R8 can see.
 -keep class * extends androidx.work.ListenableWorker { <init>(...); }
 
+# ── Strip verbose logging from release ───────────────────────────────────
+# Debug/info/verbose logs print personal content (summaries, extracted people,
+# transcripts) to logcat, which any app-with-READ_LOGS or a connected adb could
+# read. R8 removes these calls in release; warnings (w) and errors (e) stay for
+# Play Console crash diagnostics.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
 # ── Enums ────────────────────────────────────────────────────────────────
 # values()/valueOf() are used reflectively by Room type converters and
 # kotlinx.serialization when reading persisted enum columns.

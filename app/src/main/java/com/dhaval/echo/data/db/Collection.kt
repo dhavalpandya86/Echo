@@ -15,5 +15,12 @@ data class EchoCollection(
     val description: String? = null,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
-    val isAiGenerated: Boolean = false // Future AI support
+    val isAiGenerated: Boolean = false,
+    /**
+     * For auto-suggested collections: the entity (topic/project) this collection
+     * was built around. Gives an auto-collection a stable identity so the curator
+     * updates the same one on each run instead of creating duplicates. Null for
+     * manually-created collections.
+     */
+    val sourceEntityId: String? = null
 )

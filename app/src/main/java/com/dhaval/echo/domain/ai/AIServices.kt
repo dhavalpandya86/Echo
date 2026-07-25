@@ -130,3 +130,17 @@ interface ConversationService {
 
     fun getSuggestedQuestions(): Flow<List<String>>
 }
+
+/**
+ * The shared LLM engine behind the narrative screens (Remember answer, Reflect
+ * analysis, Story narration). Implemented in the data layer over whichever cloud
+ * provider has a key; null out of [AIManager] when there is none.
+ */
+interface NarrativeService {
+    /**
+     * Produce a paragraph in Echo's voice for [instruction], grounded in
+     * [memoriesBlock] (already-formatted memory text). Returns null on failure so
+     * the caller can fall back to on-device output.
+     */
+    suspend fun narrate(instruction: String, memoriesBlock: String, maxTokens: Int = 600): String?
+}

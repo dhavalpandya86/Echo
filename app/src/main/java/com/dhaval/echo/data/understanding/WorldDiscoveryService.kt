@@ -34,8 +34,16 @@ class WorldDiscoveryService @Inject constructor(
     private val clusterer: WorldClusterer,
     private val authRepository: AuthRepository
 ) {
-    /** Discovered Worlds, richest first; empty until the graph has clusters. */
-    suspend fun discover(minMemoriesPerWorld: Int = 2): List<DiscoveredWorld> {
+    /**
+     * Discovered Worlds, richest first; empty until the graph has clusters.
+     *
+     * [minMemoriesPerWorld] defaults to 1: a cluster already needs ≥2 connected
+     * entities (see [WorldClusterer]), so even a single rich memory — "Prabir ·
+     * Avyan · school" — is a real part of a life worth showing. Requiring 2+
+     * memories left a young diary with an empty Worlds screen; multi-memory
+     * Worlds still sort to the top as the graph grows.
+     */
+    suspend fun discover(minMemoriesPerWorld: Int = 1): List<DiscoveredWorld> {
         val userId = authRepository.getCurrentUser()?.id ?: return emptyList()
         val entities = dao.getActiveEntities(userId)
         if (entities.size < 2) return emptyList()

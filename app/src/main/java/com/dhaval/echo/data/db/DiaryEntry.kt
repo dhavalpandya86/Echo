@@ -45,7 +45,12 @@ data class DiaryEntry(
 
     // Photo understanding (DB version 16): the "Echo sees…" summary derived on-device
     // from image labels + EXIF-GPS place. Null when there are no photos / nothing seen.
-    val visualSummary: String? = null
+    val visualSummary: String? = null,
+
+    // Per-photo captions (DB version 17): the user's own words about a photo, keyed
+    // by its path. A side map rather than a PhotoAttachment record so imagePaths —
+    // wired through the whole app — stays the source of truth for which photos exist.
+    val photoCaptions: Map<String, String>? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -77,6 +82,7 @@ data class DiaryEntry(
         if (embeddingModelVersion != other.embeddingModelVersion) return false
         if (embeddingCreatedAt != other.embeddingCreatedAt) return false
         if (visualSummary != other.visualSummary) return false
+        if (photoCaptions != other.photoCaptions) return false
         return true
     }
 
@@ -104,6 +110,7 @@ data class DiaryEntry(
         result = 31 * result + (embeddingModelVersion?.hashCode() ?: 0)
         result = 31 * result + (embeddingCreatedAt?.hashCode() ?: 0)
         result = 31 * result + (visualSummary?.hashCode() ?: 0)
+        result = 31 * result + (photoCaptions?.hashCode() ?: 0)
         return result
     }
 }

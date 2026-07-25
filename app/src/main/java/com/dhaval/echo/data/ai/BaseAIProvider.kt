@@ -43,7 +43,7 @@ class GeminiProvider : BaseAIProvider(
 
 class OpenAIProvider : BaseAIProvider(
     id = "openai",
-    displayName = "OpenAI (GPT-4o)",
+    displayName = "OpenAI",
     supportsStreaming = true,
     supportsVision = true,
     supportsAudio = true,

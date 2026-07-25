@@ -127,6 +127,9 @@ dependencies {
     ksp(libs.room.compiler)
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
+    // Evaluation only — deliberately androidTest-scoped so the Gemma prototype
+    // adds nothing to the shipped app until we decide it earns its size.
+    androidTestImplementation(libs.litertlm.android)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

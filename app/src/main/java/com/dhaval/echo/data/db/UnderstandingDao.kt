@@ -241,6 +241,16 @@ interface UnderstandingDao {
     )
     fun getLinkedEntities(memoryId: String): Flow<List<LinkedEntityView>>
 
+    /** One-shot [getLinkedEntities] — for the tagger, which runs post-understanding. */
+    @Query(
+        """SELECT l.entityId AS entityId, e.name AS name, e.type AS type,
+                  l.relation AS relation, l.confidence AS confidence, l.inferred AS inferred
+           FROM memory_entity_links l JOIN entities e ON e.id = l.entityId
+           WHERE l.memoryId = :memoryId
+           ORDER BY l.inferred ASC, l.confidence DESC"""
+    )
+    suspend fun getLinkedEntitiesOnce(memoryId: String): List<LinkedEntityView>
+
     @Query("SELECT * FROM memory_entity_links WHERE entityId = :entityId")
     suspend fun getLinksForEntity(entityId: String): List<MemoryEntityLink>
 

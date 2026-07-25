@@ -85,4 +85,19 @@ interface IntelligenceDao {
         // Simple implementation for now
         insertConnections(connections)
     }
+
+    @Query("DELETE FROM memory_connections WHERE fromEntryId = :entryId OR toEntryId = :entryId")
+    suspend fun deleteConnectionsForEntry(entryId: String)
+
+    /**
+     * Replaces every link touching [entryId] with a freshly-computed set. Used by
+     * the embedding-based linker: recomputing an entry's whole neighbourhood each
+     * time keeps links current and clears any stale ones (e.g. those the old
+     * classification-keyword linker wrote).
+     */
+    @Transaction
+    suspend fun replaceMemoryLinks(entryId: String, connections: List<MemoryConnection>) {
+        deleteConnectionsForEntry(entryId)
+        insertConnections(connections)
+    }
 }

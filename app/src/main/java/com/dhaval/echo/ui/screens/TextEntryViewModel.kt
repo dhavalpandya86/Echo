@@ -2,8 +2,13 @@ package com.dhaval.echo.ui.screens
 
 import android.content.Context
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
+import com.dhaval.echo.ui.navigation.TextEntryRoute
+import java.time.LocalDate
+import java.time.LocalDateTime
 import com.dhaval.echo.domain.audio.AudioConfig
 import com.dhaval.echo.domain.audio.AudioStorageEngine
 import com.dhaval.echo.domain.audio.Recorder
@@ -42,7 +47,9 @@ data class TextEntryUiState(
     val error: String? = null,
     val isRecording: Boolean = false,
     val isTranscribing: Boolean = false,
-    val dictationTarget: DictationTarget? = null
+    val dictationTarget: DictationTarget? = null,
+    /** Non-null when this entry is being backdated to a chosen calendar day. */
+    val entryDate: LocalDate? = null
 )
 
 @HiltViewModel
@@ -52,10 +59,17 @@ class TextEntryViewModel @Inject constructor(
     private val recorder: Recorder,
     private val storageEngine: AudioStorageEngine,
     private val sttEngine: SpeechToTextEngine,
-    private val liveDictation: LiveDictation
+    private val liveDictation: LiveDictation,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TextEntryUiState())
+    /** The day this memory should be dated to (from the calendar), or null = now. */
+    private val entryDate: LocalDateTime? =
+        runCatching { savedStateHandle.toRoute<TextEntryRoute>().dateEpochDay }
+            .getOrNull()
+            ?.let { LocalDate.ofEpochDay(it).atTime(java.time.LocalTime.now()) }
+
+    private val _uiState = MutableStateFlow(TextEntryUiState(entryDate = entryDate?.toLocalDate()))
     val uiState: StateFlow<TextEntryUiState> = _uiState.asStateFlow()
 
     // ── Mic dictation ────────────────────────────────────────────────
@@ -290,7 +304,8 @@ class TextEntryViewModel @Inject constructor(
                 val id = diaryRepository.createTextEntry(
                     title = state.title,
                     textContent = state.textContent,
-                    imagePaths = state.imagePaths
+                    imagePaths = state.imagePaths,
+                    date = entryDate
                 )
                 _uiState.update { it.copy(isSaving = false, savedEntryId = id) }
             } catch (e: Exception) {
