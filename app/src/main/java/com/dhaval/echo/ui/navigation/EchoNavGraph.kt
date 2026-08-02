@@ -242,6 +242,7 @@ fun EchoNavGraph(
         composable<SettingsRoute> {
             SettingsScreen(
                 onNavigateToAiSettings = { navController.navigate(AiSettingsRoute) },
+                onNavigateToCollections = { navController.navigate(CollectionsRoute) },
                 onNavigateBack = { navController.popBackStack() }
             )
         }

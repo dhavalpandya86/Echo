@@ -1,6 +1,7 @@
 package com.dhaval.echo.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -37,11 +38,21 @@ import com.dhaval.echo.ui.navigation.*
  */
 @Composable
 fun EchoApp(
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: AuthViewModel = hiltViewModel(),
+    appearanceViewModel: AppearanceViewModel = hiltViewModel()
 ) {
     val authState by viewModel.authState.collectAsState()
+    val appearance by appearanceViewModel.mode.collectAsState()
 
-    EchoTheme {
+    // Resolved here, at the root, so the whole app is drawn once in the right
+    // theme rather than repainting after a preference read further down.
+    val darkTheme = when (appearance) {
+        com.dhaval.echo.data.preferences.AppearanceMode.SYSTEM -> isSystemInDarkTheme()
+        com.dhaval.echo.data.preferences.AppearanceMode.LIGHT -> false
+        com.dhaval.echo.data.preferences.AppearanceMode.DARK -> true
+    }
+
+    EchoTheme(darkTheme = darkTheme) {
         val navController = rememberNavController()
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination

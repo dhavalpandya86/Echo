@@ -19,4 +19,18 @@ object PreferencesModule {
     fun provideAiPreferences(@ApplicationContext context: Context): AiPreferences {
         return AiPreferences(context.aiDataStore)
     }
+
+    /**
+     * Shares the same DataStore file as [AiPreferences] — one preferences store
+     * per app, keyed by name. `DataStore<Preferences>` itself is deliberately
+     * not a bound type, so each preferences class is constructed with it here
+     * rather than injecting it.
+     */
+    @Provides
+    @Singleton
+    fun provideAppearancePreferences(
+        @ApplicationContext context: Context
+    ): com.dhaval.echo.data.preferences.AppearancePreferences {
+        return com.dhaval.echo.data.preferences.AppearancePreferences(context.aiDataStore)
+    }
 }

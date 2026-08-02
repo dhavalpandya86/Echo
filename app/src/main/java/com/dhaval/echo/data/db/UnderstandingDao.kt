@@ -398,6 +398,37 @@ interface UnderstandingDao {
     @Query("DELETE FROM memory_extraction_runs WHERE memoryId = :memoryId")
     suspend fun deleteRunsForMemory(memoryId: String)
 
+    /**
+     * How many memories still have questions outstanding.
+     *
+     * A memory counts as waiting when it has fewer settled runs than the
+     * registry has questions — which covers both "never processed" (no rows at
+     * all) and "partly processed" (interrupted mid-run). Deleted memories and
+     * ones with nothing to read are excluded, since neither is waiting on
+     * anything.
+     *
+     * This is the number behind the Memory Status card, so it has to mean
+     * exactly what it says: work Echo still owes the user.
+     */
+    @Query(
+        """SELECT COUNT(*) FROM diary_entries d
+           WHERE d.userId = :userId AND d.deleted = 0
+             AND (d.transcript IS NOT NULL AND TRIM(d.transcript) != ''
+                  OR d.textContent IS NOT NULL AND TRIM(d.textContent) != '')
+             AND (
+               SELECT COUNT(*) FROM memory_extraction_runs r
+               WHERE r.memoryId = d.id AND r.status IN ('COMPLETED','SKIPPED')
+             ) < :questionCount"""
+    )
+    fun countMemoriesAwaitingUnderstanding(userId: String, questionCount: Int): Flow<Int>
+
+    /** When understanding last finished anything, for "last analyzed". */
+    @Query(
+        """SELECT MAX(completedAt) FROM memory_extraction_runs
+           WHERE userId = :userId AND status = 'COMPLETED'"""
+    )
+    fun lastAnalyzedAt(userId: String): Flow<java.time.LocalDateTime?>
+
     // ── Idempotent re-processing ─────────────────────────────────────
 
     @Query("DELETE FROM memory_entity_links WHERE memoryId = :memoryId AND extractorId = :extractorId")
