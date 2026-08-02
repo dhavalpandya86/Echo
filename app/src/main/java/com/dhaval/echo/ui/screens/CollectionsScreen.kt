@@ -154,7 +154,7 @@ private fun WorldCard(name: String, count: Int, onClick: () -> Unit, subtitle: S
                 Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White),
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Rounded.Public, contentDescription = null, tint = primary, modifier = Modifier.size(24.dp))

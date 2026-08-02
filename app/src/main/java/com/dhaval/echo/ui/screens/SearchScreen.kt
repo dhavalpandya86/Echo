@@ -170,7 +170,7 @@ private fun AskEchoSection(answer: AiAnswerState, onAsk: () -> Unit) {
             .fillMaxWidth()
             .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White
+        color = MaterialTheme.colorScheme.surfaceContainerLowest
     ) {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -276,7 +276,7 @@ private fun ResultCard(result: SearchResult, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
         shadowElevation = 2.dp
     ) {
         Column(Modifier.padding(18.dp)) {
@@ -310,7 +310,7 @@ private fun EchoConnectionCard(conn: InferredConnectionView, onOpen: () -> Unit)
             .fillMaxWidth()
             .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White
+        color = MaterialTheme.colorScheme.surfaceContainerLowest
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
             Box(

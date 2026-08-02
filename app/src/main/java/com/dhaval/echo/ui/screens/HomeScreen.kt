@@ -308,7 +308,7 @@ private fun TodayCard(
     Surface(
         modifier = base,
         shape = RoundedCornerShape(24.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
         shadowElevation = 3.dp
     ) {
         Column(Modifier.padding(20.dp), content = content)

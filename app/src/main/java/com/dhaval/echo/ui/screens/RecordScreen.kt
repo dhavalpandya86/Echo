@@ -220,7 +220,9 @@ fun RecordScreen(
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = null,
-                                tint = Color.White,
+                                // Sits on `primary`, which is a light lavender in
+                                // dark mode — this must invert with it.
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(64.dp)
                             )
                         }

@@ -204,7 +204,7 @@ private fun ReflectPromptCard(prompt: ReflectPrompt, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
         shadowElevation = 2.dp
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {

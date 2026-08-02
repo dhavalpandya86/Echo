@@ -19,13 +19,47 @@ val EchoLavender = Color(0xFFB6AEFF)  // highlight only
 val EchoInk = Color(0xFF1A1A1A)       // primary text
 val EchoSlate = Color(0xFF666666)     // secondary text
 
+/**
+ * Raised cards — the Stitch "floating card" look.
+ *
+ * Deliberately *lighter* than [EchoPaper] so a card lifts off the canvas. This
+ * is the one place pure white is correct, and it must never be written as
+ * `Color.White` at a call site: a literal cannot flip for dark mode, and the
+ * text drawn on it will, which is how cards end up with invisible content.
+ * Reach for `MaterialTheme.colorScheme.surfaceContainerLowest` instead.
+ */
+val EchoCard = Color(0xFFFFFFFF)
+
 // ── Dark theme — "Night" ──────────────────────────────────────────────
-val EchoNight = Color(0xFF16151A)         // dark canvas
-val EchoNightSurface = Color(0xFF211F26)  // dark cards
-val EchoNightMist = Color(0xFF2A2830)     // dark selected tint
-val EchoIndigoLight = Color(0xFF8B8DF5)   // indigo lightened for dark contrast
-val EchoNightText = Color(0xFFF3EFEA)     // text on night
-val EchoNightSecondary = Color(0xFFA5A1AC) // secondary text on night
+// Values from the Stitch "Echo Narrative Dark" design system, so the dark theme
+// is the one that was designed rather than one derived by darkening the light
+// palette. Depth here comes from tonal layers, not shadows — a shadow is close
+// to invisible on a near-black canvas.
+
+val EchoNight = Color(0xFF1C1B1B)         // dark canvas
+val EchoNightSurface = Color(0xFF34343D)  // muted containers / dividers
+val EchoNightMist = Color(0xFF464554)     // selected / active tint
+val EchoIndigoLight = Color(0xFFC2C1FF)   // primary on dark — a light lavender
+val EchoNightText = Color(0xFFFCF9F8)     // text on night
+val EchoNightSecondary = Color(0xFFC7C4D7) // secondary text on night
+val EchoNightOutline = Color(0xFF918F9A)  // borders on night
+
+/**
+ * Text and icons drawn *on* [EchoIndigoLight].
+ *
+ * Dark mode inverts the usual relationship: the primary colour is now lighter
+ * than the text that sits on it. Anything still drawing white on primary — which
+ * was correct in light mode — turns invisible here, so it must resolve through
+ * `onPrimary` rather than a literal.
+ */
+val EchoNightOnPrimary = Color(0xFF0C006B)
+
+/**
+ * The dark-mode counterpart of [EchoCard]: a raised card is *lighter* than the
+ * canvas in both themes. Inverting that relationship is exactly what a hardcoded
+ * white card did — it stayed white while the text on it went near-white.
+ */
+val EchoNightCard = Color(0xFF313030)
 
 // ── Semantic ──────────────────────────────────────────────────────────
 val EchoSuccess = Color(0xFF3E7C4F)

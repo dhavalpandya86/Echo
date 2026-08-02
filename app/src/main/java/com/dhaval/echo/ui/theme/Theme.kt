@@ -32,6 +32,13 @@ private val EchoLightColorScheme = lightColorScheme(
     onSurface = EchoInk,
     surfaceVariant = EchoSurface,
     onSurfaceVariant = EchoSlate,
+    // Raised cards. See the note on the dark scheme's copy of this role for why
+    // both schemes define it explicitly rather than letting Material derive it.
+    surfaceContainerLowest = EchoCard,
+    surfaceContainerLow = EchoCard,
+    surfaceContainer = EchoSurface,
+    surfaceContainerHigh = EchoSurface,
+    surfaceContainerHighest = EchoMist,
     outline = EchoSlate,
     outlineVariant = EchoSurface,
     error = EchoError,
@@ -39,18 +46,29 @@ private val EchoLightColorScheme = lightColorScheme(
 )
 
 /**
- * Dark scheme — "Night". Indigo lightens for contrast, mark goes Lavender.
+ * Dark scheme — "Night", from the Stitch dark design system.
+ *
+ * Depth comes from tonal layers rather than shadows: a card is a lighter grey on
+ * a near-black canvas, because a drop shadow is invisible against black.
+ *
+ * The trap this scheme exists to close: in light mode `primary` is a saturated
+ * indigo carrying white text, so drawing white on it is fine. Here `primary` is
+ * a *light* lavender and the text on it must be dark. Any view that hardcodes
+ * white instead of resolving `onPrimary` disappears — which is precisely how
+ * card text went invisible before this was written down.
  */
 private val EchoDarkColorScheme = darkColorScheme(
     primary = EchoIndigoLight,
-    onPrimary = EchoNight,
-    primaryContainer = EchoNightMist,
-    onPrimaryContainer = EchoLavender,
+    onPrimary = EchoNightOnPrimary,
+    // The solid indigo from the design — used for filled accents like the record
+    // button, where white-on-indigo is still the correct pairing.
+    primaryContainer = EchoIndigo,
+    onPrimaryContainer = EchoNightText,
     // Muted-text role on Night — see the light scheme note above.
     secondary = EchoNightSecondary,
     onSecondary = EchoNight,
     secondaryContainer = EchoNightMist,
-    onSecondaryContainer = EchoLavender,
+    onSecondaryContainer = EchoNightText,
     tertiary = EchoLavender,
     onTertiary = EchoNight,
     background = EchoNight,
@@ -59,7 +77,16 @@ private val EchoDarkColorScheme = darkColorScheme(
     onSurface = EchoNightText,
     surfaceVariant = EchoNightSurface,
     onSurfaceVariant = EchoNightSecondary,
-    outline = EchoNightSecondary,
+    // A raised card is lighter than the canvas in *both* themes. Screens read
+    // this role rather than a literal colour, which also means Material derives
+    // the matching `onSurface` text colour for them automatically — the pairing
+    // whose absence caused near-white text on white cards.
+    surfaceContainerLowest = EchoNightCard,
+    surfaceContainerLow = EchoNightCard,
+    surfaceContainer = EchoNightSurface,
+    surfaceContainerHigh = EchoNightMist,
+    surfaceContainerHighest = EchoNightMist,
+    outline = EchoNightOutline,
     outlineVariant = EchoNightSurface,
     error = EchoError,
     onError = EchoNightText,

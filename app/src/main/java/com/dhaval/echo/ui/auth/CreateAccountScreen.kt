@@ -146,7 +146,7 @@ fun CreateAccountScreen(
                         password.isNotBlank() && password == confirmPassword
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
                     Text("Create Account", fontSize = 18.sp)
                 }

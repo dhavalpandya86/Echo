@@ -581,7 +581,7 @@ private fun LifeCalendar(
                                     date.dayOfMonth.toString(),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (count > 0) Color.White
+                                    color = if (count > 0) MaterialTheme.colorScheme.onPrimary
                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                                 )
                                 // A small dot marks a day that has phone-calendar events.
@@ -592,7 +592,7 @@ private fun LifeCalendar(
                                             .padding(bottom = 3.dp)
                                             .size(4.dp)
                                             .clip(CircleShape)
-                                            .background(if (count > 0) Color.White else primary)
+                                            .background(if (count > 0) MaterialTheme.colorScheme.onPrimary else primary)
                                     )
                                 }
                             }
@@ -694,7 +694,7 @@ private fun StoryMemoryCard(entry: TimelineEntry, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
         shadowElevation = 2.dp
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
