@@ -57,6 +57,9 @@ object SettingsRoute
 object AiSettingsRoute
 
 @Serializable
+object PrivacyPolicyRoute
+
+@Serializable
 object CollectionsRoute
 
 @Serializable

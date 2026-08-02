@@ -59,7 +59,7 @@ class GoogleAuthHelper(private val context: Context) {
             val friendlyMessage = when {
                 e.type.contains("androidx.credentials.TYPE_GET_CREDENTIAL_CANCELED_EXCEPTION") -> "Sign-in cancelled"
                 e.type.contains("androidx.credentials.TYPE_GET_CREDENTIAL_INTERRUPTED_EXCEPTION") -> "Sign-in interrupted"
-                else -> "Google Sign-In error: ${e.message ?: "Unknown error"}"
+                else -> "GSI error [${e.type.substringAfterLast('.')}]: ${e.message ?: "Unknown error"}"
             }
             Result.failure(Exception(friendlyMessage))
         } catch (e: Exception) {

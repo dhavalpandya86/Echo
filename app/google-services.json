@@ -22,6 +22,22 @@
           }
         },
         {
+          "client_id": "994516006717-qjvep1r4mq2dcfst8n6ti65rmbh7jcnm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhaval.echo",
+            "certificate_hash": "dab379cc1be24b8aa60dce0dbae4047a3ec3b152"
+          }
+        },
+        {
+          "client_id": "994516006717-bku80h0hilqsjqomehle6n392co36o1h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhaval.echo",
+            "certificate_hash": "e0dfa29c057e88bbb1ecd9e658ee5b3c0ef5b11e"
+          }
+        },
+        {
           "client_id": "994516006717-rtaa4mtlldo3794oiqs026de1hgt5qfa.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
