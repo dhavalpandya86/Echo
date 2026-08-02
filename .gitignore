@@ -28,3 +28,6 @@ Echo Brand Identity Design-handoff/
 # Tooling scratch
 .artifacts/
 .idea/claudeCodeEditorTabs.xml
+
+# Project-local Gradle home (build cache — hundreds of MB, never source)
+.gradle-user-home/

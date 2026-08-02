@@ -50,8 +50,22 @@ data class DiaryEntry(
     // Per-photo captions (DB version 17): the user's own words about a photo, keyed
     // by its path. A side map rather than a PhotoAttachment record so imagePaths —
     // wired through the whole app — stays the source of truth for which photos exist.
-    val photoCaptions: Map<String, String>? = null
+    val photoCaptions: Map<String, String>? = null,
+
+    // Sentence-corrected text (DB version 19): the transcript with punctuation
+    // restored and disfluencies removed — what the user reads, and what every
+    // extractor downstream reasons about.
+    //
+    // Deliberately a separate column: `transcript` stays the verbatim STT output
+    // because playback position, TranscriptionSegment timings, and the user's
+    // right to see what they actually said all depend on it being untouched.
+    // Null until the cleanup extractor runs, or when it has nothing to fix.
+    val cleanedText: String? = null
 ) {
+    /** The text to reason about and display: corrected when we have it, raw otherwise. */
+    val readableText: String?
+        get() = cleanedText?.takeIf { it.isNotBlank() } ?: transcript
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -83,6 +97,7 @@ data class DiaryEntry(
         if (embeddingCreatedAt != other.embeddingCreatedAt) return false
         if (visualSummary != other.visualSummary) return false
         if (photoCaptions != other.photoCaptions) return false
+        if (cleanedText != other.cleanedText) return false
         return true
     }
 
@@ -111,6 +126,7 @@ data class DiaryEntry(
         result = 31 * result + (embeddingCreatedAt?.hashCode() ?: 0)
         result = 31 * result + (visualSummary?.hashCode() ?: 0)
         result = 31 * result + (photoCaptions?.hashCode() ?: 0)
+        result = 31 * result + (cleanedText?.hashCode() ?: 0)
         return result
     }
 }

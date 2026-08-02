@@ -39,10 +39,6 @@ object AiServiceModule {
         aiManager.getTitleGenerationService()
 
     @Provides
-    fun provideTagSuggestionService(aiManager: AIManager): TagSuggestionService =
-        aiManager.getTagSuggestionService()
-
-    @Provides
     fun provideEmbeddingService(aiManager: AIManager): EmbeddingService =
         aiManager.getEmbeddingService()
 

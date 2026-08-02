@@ -41,7 +41,13 @@ data class ExtractedItem(
     val evidence: String?,
     /** One of [ItemStatus]; meaningful for TASK/REMINDER. */
     val status: String = ItemStatus.OPEN,
-    val createdAt: LocalDateTime
+    val createdAt: LocalDateTime,
+    /**
+     * Which registry extractor produced this row. Lets the runner replace one
+     * extractor's output in isolation when it re-runs, leaving the other 21
+     * untouched. Null for rows written before the staged pipeline existed.
+     */
+    val extractorId: String? = null
 )
 
 object ItemKind {
@@ -49,6 +55,31 @@ object ItemKind {
     const val REMINDER = "REMINDER"
     const val MOOD = "MOOD"
     const val DECISION = "DECISION"
+
+    // ── Facets ────────────────────────────────────────────────────────
+    // One interpretive verdict about the memory as a whole. Unlike TASK and
+    // REMINDER these carry no lifecycle — [ItemStatus] stays OPEN and is not
+    // meaningful. They are stored here rather than as columns on the memory so
+    // the set can grow additively (`kind` is TEXT) and so each one keeps the
+    // confidence + evidence quote that every other conclusion carries.
+    //
+    // Safe to add: every actionable query filters `kind IN ('TASK','REMINDER')`,
+    // so facets cannot leak into the Tasks screen or the reminder scheduler.
+
+    /** What the user means to bring about: "Buy equipment". */
+    const val INTENT = "INTENT"
+
+    /** What sort of memory this is: "Commitment", "Experience", "Decision". */
+    const val MEMORY_TYPE = "MEMORY_TYPE"
+
+    /** Which area of life: "Family", "Work", "Health". */
+    const val CATEGORY = "CATEGORY"
+
+    /** How much it matters: "High", "Medium", "Low". */
+    const val PRIORITY = "PRIORITY"
+
+    /** The facet kinds, for querying and for the detail screen's facet row. */
+    val FACETS = setOf(INTENT, MEMORY_TYPE, CATEGORY, PRIORITY)
 }
 
 object ItemStatus {

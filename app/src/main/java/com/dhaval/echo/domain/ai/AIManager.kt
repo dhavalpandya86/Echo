@@ -28,6 +28,16 @@ interface AIManager {
      * tier (no key) so callers fall back to their on-device output.
      */
     fun getNarrativeService(): NarrativeService?
+
+    /**
+     * A raw cloud completion for structured extraction, or null on the free tier.
+     *
+     * Separate from [getNarrativeService] because the two want opposite things:
+     * narration folds in Echo's persona ("speak warmly, like a thoughtful
+     * friend"), which actively fights a prompt whose entire contract is "return
+     * only this JSON object". Extraction gets a neutral instruction instead.
+     */
+    fun getExtractionCompleter(): TextCompleter?
     
     // Service Accessors
     fun getLanguageDetectionService(): LanguageDetectionService
@@ -35,7 +45,6 @@ interface AIManager {
     fun getSpeechToTextEngine(): com.dhaval.echo.domain.transcription.SpeechToTextEngine
     fun getSummaryService(): SummaryService
     fun getTitleGenerationService(): TitleGenerationService
-    fun getTagSuggestionService(): TagSuggestionService
     fun getEmbeddingService(): EmbeddingService
     fun getMemoryRelationshipService(): MemoryRelationshipService
     fun getSemanticSearchService(): SemanticSearchService
@@ -56,6 +65,15 @@ interface AIManager {
      * supplied a key for it; on-device labelling otherwise.
      */
     fun getPhotoVisualDescriber(): com.dhaval.echo.domain.understanding.PhotoVisualDescriber
+}
+
+/**
+ * A bare text completion: prompt in, text out. The narrowest possible seam over
+ * "some model answered this", so callers that build their own full prompt (the
+ * extraction pipeline) do not inherit anyone else's system instruction.
+ */
+fun interface TextCompleter {
+    suspend fun complete(prompt: String, maxTokens: Int): String
 }
 
 enum class AICapability {

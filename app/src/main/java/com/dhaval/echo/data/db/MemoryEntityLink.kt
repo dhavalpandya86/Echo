@@ -45,7 +45,15 @@ data class MemoryEntityLink(
     /** Supporting quote from the memory, when available. */
     val evidence: String?,
     val inferred: Boolean = false,
-    val createdAt: LocalDateTime
+    val createdAt: LocalDateTime,
+    /**
+     * Which registry extractor produced this link. Lets the runner replace one
+     * extractor's output in isolation when it re-runs, leaving the other 21
+     * untouched. Null for links written before the staged pipeline existed, and
+     * for Stage-6 inferred links, which belong to the expansion pass rather than
+     * to any single question.
+     */
+    val extractorId: String? = null
 )
 
 object LinkRelation {
@@ -55,4 +63,6 @@ object LinkRelation {
     const val LOCATED_AT = "LOCATED_AT"   // places
     const val INVOLVES = "INVOLVES"       // orgs / products / other
     const val FELT = "FELT"               // feelings
+    const val DID = "DID"                 // activities
+    const val ABOUT = "ABOUT"             // objects
 }

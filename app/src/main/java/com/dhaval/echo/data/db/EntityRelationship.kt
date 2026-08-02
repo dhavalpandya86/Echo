@@ -53,7 +53,16 @@ data class EntityRelationship(
     val confidence: Float,
     val evidence: String?,
     val firstSeenAt: LocalDateTime,
-    val lastSeenAt: LocalDateTime
+    val lastSeenAt: LocalDateTime,
+    /**
+     * True when a model read the memory and *stated* this relationship
+     * ("Prabir → Swimming"), rather than it being inferred from co-occurrence
+     * counting. Asserted edges are meaningful at weight 1 — a single sentence is
+     * enough — whereas a co-occurrence edge means nothing until it repeats.
+     * Kept distinct so [EntityGraphMaintainer]'s periodic rebuild can recompute
+     * co-occurrence weights without erasing what a model actually read.
+     */
+    val asserted: Boolean = false
 )
 
 /** Relationship kinds for the entity graph. */

@@ -128,13 +128,21 @@ fun EntryDetailsScreen(
                         SummarySection(it.summary)
                     }
 
-                    // What the Memory Understanding Engine concluded (MU-0)
+                    // What the Memory Understanding Engine concluded (MU-0).
+                    // Fills in progressively — each of the ~22 extractors writes
+                    // its answer as it lands, so sections appear one by one
+                    // rather than the whole board arriving at once.
                     if (uiState.linkedEntities.isNotEmpty() || uiState.extractedItems.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(24.dp))
                         UnderstandingSection(
                             entities = uiState.linkedEntities,
                             items = uiState.extractedItems
                         )
+                    }
+
+                    if (uiState.understandingProgress.inProgress) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        UnderstandingProgressRow(uiState.understandingProgress)
                     }
 
                     // Only show playback for VOICE / MIXED entries with audio
@@ -316,10 +324,20 @@ private fun UnderstandingSection(
     items: List<com.dhaval.echo.data.db.ExtractedItem>
 ) {
     val people = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.PERSON }
+    val activities = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.ACTIVITY }
+    val objects = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.OBJECT }
+    val places = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.PLACE }
+    // Whatever is left that isn't a feeling — projects, topics, orgs, products.
     val topics = entities.filter {
-        it.type != com.dhaval.echo.data.db.EntityType.PERSON &&
-            it.type != com.dhaval.echo.data.db.EntityType.FEELING
+        it.type !in setOf(
+            com.dhaval.echo.data.db.EntityType.PERSON,
+            com.dhaval.echo.data.db.EntityType.ACTIVITY,
+            com.dhaval.echo.data.db.EntityType.OBJECT,
+            com.dhaval.echo.data.db.EntityType.PLACE,
+            com.dhaval.echo.data.db.EntityType.FEELING
+        )
     }
+    val facets = items.filter { it.kind in com.dhaval.echo.data.db.ItemKind.FACETS }
     val tasks = items.filter {
         it.kind == com.dhaval.echo.data.db.ItemKind.TASK ||
             it.kind == com.dhaval.echo.data.db.ItemKind.REMINDER
@@ -339,6 +357,39 @@ private fun UnderstandingSection(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     people.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (activities.isNotEmpty()) {
+            UnderstandingGroup("Activities") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    activities.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (objects.isNotEmpty()) {
+            UnderstandingGroup("Things") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    objects.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (places.isNotEmpty()) {
+            UnderstandingGroup("Places") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    places.forEach { EntityChip(it) }
                 }
             }
         }
@@ -386,6 +437,21 @@ private fun UnderstandingSection(
             }
         }
 
+        if (facets.isNotEmpty()) {
+            UnderstandingGroup("At a glance") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Ordered so the row reads the same way on every memory —
+                    // what it is, then where it belongs, then how much it matters.
+                    FACET_ORDER.forEach { kind ->
+                        facets.firstOrNull { it.kind == kind }?.let { FacetChip(it) }
+                    }
+                }
+            }
+        }
+
         if (moods.isNotEmpty()) {
             UnderstandingGroup("Mood") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -408,6 +474,33 @@ private fun UnderstandingSection(
     }
 }
 
+/**
+ * "Still understanding this memory — 7 of 22."
+ *
+ * Deliberately quiet and deliberately honest. Extraction takes minutes on
+ * device, and without this a memory that has answered six of its questions
+ * looks like a memory Echo simply failed at. It disappears the moment every
+ * question has settled.
+ */
+@Composable
+private fun UnderstandingProgressRow(progress: UnderstandingProgress) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(
+            progress = { progress.settled.toFloat() / progress.total.coerceAtLeast(1) },
+            modifier = Modifier.size(14.dp),
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "Still understanding this memory — ${progress.settled} of ${progress.total}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 @Composable
 private fun UnderstandingGroup(title: String, content: @Composable () -> Unit) {
     Column {
@@ -423,6 +516,75 @@ private fun UnderstandingGroup(title: String, content: @Composable () -> Unit) {
     }
 }
 
+/**
+ * Below this, a stated conclusion shows its confidence next to it. Above it,
+ * the number would be clutter — the chip being there is the claim.
+ */
+private const val CONFIDENCE_SHOWN_BELOW = 0.7f
+
+/** The facet row's fixed order, so it reads identically on every memory. */
+private val FACET_ORDER = listOf(
+    com.dhaval.echo.data.db.ItemKind.MEMORY_TYPE,
+    com.dhaval.echo.data.db.ItemKind.CATEGORY,
+    com.dhaval.echo.data.db.ItemKind.INTENT,
+    com.dhaval.echo.data.db.ItemKind.PRIORITY
+)
+
+/**
+ * A glyph per kind of thing.
+ *
+ * Chips carry no type label, so the glyph is what distinguishes "Prabir" the
+ * person from "Swimming" the activity at a glance — the difference between a
+ * row of chips reading as facets and reading as a bag of words.
+ */
+private fun glyphForEntity(type: String): String = when (type) {
+    com.dhaval.echo.data.db.EntityType.PERSON -> "👤"
+    com.dhaval.echo.data.db.EntityType.ACTIVITY -> "🏊"
+    com.dhaval.echo.data.db.EntityType.OBJECT -> "🎒"
+    com.dhaval.echo.data.db.EntityType.PLACE -> "📍"
+    com.dhaval.echo.data.db.EntityType.ORG -> "🏢"
+    com.dhaval.echo.data.db.EntityType.PROJECT -> "📁"
+    com.dhaval.echo.data.db.EntityType.PRODUCT -> "🛍"
+    com.dhaval.echo.data.db.EntityType.FEELING -> "💭"
+    else -> "🏷"
+}
+
+private fun glyphForFacet(kind: String): String = when (kind) {
+    com.dhaval.echo.data.db.ItemKind.MEMORY_TYPE -> "📝"
+    com.dhaval.echo.data.db.ItemKind.CATEGORY -> "🗂"
+    com.dhaval.echo.data.db.ItemKind.INTENT -> "🎯"
+    com.dhaval.echo.data.db.ItemKind.PRIORITY -> "⭐"
+    else -> "🏷"
+}
+
+/**
+ * One interpretive verdict about the memory.
+ *
+ * Styled apart from the entity chips: a facet is Echo's reading of the memory,
+ * not something the memory names, and the two should not look like the same
+ * kind of claim.
+ */
+@Composable
+private fun FacetChip(facet: com.dhaval.echo.data.db.ExtractedItem) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = CircleShape
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(text = glyphForFacet(facet.kind), style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = facet.value,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun EntityChip(entity: com.dhaval.echo.data.db.LinkedEntityView) {
     Surface(
@@ -434,14 +596,20 @@ private fun EntityChip(entity: com.dhaval.echo.data.db.LinkedEntityView) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
+            Text(text = glyphForEntity(entity.type), style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.width(6.dp))
             Text(
                 text = entity.name,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            // Inferred = derived by graph traversal, not stated by the user.
-            // It must look different, and it must show its confidence.
-            if (entity.inferred) {
+            // Every conclusion carries a confidence, and anything Echo is not
+            // sure of says so. Inferred links (derived by graph traversal rather
+            // than stated) always show theirs; stated ones only when they are
+            // shaky enough that the user should weigh them — a chip at 95% with
+            // a number on it is just noise.
+            val showConfidence = entity.inferred || entity.confidence < CONFIDENCE_SHOWN_BELOW
+            if (showConfidence) {
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = "~${(entity.confidence * 100).toInt()}%",
@@ -552,6 +720,17 @@ private fun PlaybackCard(
     }
 }
 
+/**
+ * Duration, and the memory's tags.
+ *
+ * Tags here are the *editable* surface — entity names Echo extracted, plus
+ * anything the user added themselves. There is deliberately no fallback when
+ * extraction finds nothing: this section used to be backfilled with the
+ * memory's most frequent words, so a note about taking Prabir swimming showed
+ * "Need · Next · Take · Think · Week". That looked like understanding, was
+ * noise, and hid the real problem — that nothing had been extracted at all.
+ * An empty row is the honest answer, and the + button is right there.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InfoSection(
@@ -573,9 +752,9 @@ private fun InfoSection(
             Spacer(Modifier.weight(1f))
             Text(text = duration, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

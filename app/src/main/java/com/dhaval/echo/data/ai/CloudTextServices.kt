@@ -20,6 +20,23 @@ fun interface CloudTextCompleter {
     suspend fun complete(prompt: String, maxTokens: Int): String
 }
 
+/**
+ * The extraction voice: none.
+ *
+ * Structured extraction wants a model that answers one narrow question in one
+ * exact JSON shape. [ECHO_SYSTEM_PROMPT] asks for warmth and direct address,
+ * which is right for Remember/Reflect and wrong here — it produces preambles
+ * around the JSON and softens facts the pipeline needs verbatim. The shared
+ * rule that survives both is the one about not inventing anything.
+ */
+internal const val EXTRACTION_SYSTEM_PROMPT =
+    "You are the extraction engine inside Echo, a personal memory app. You are asked one " +
+        "narrow question at a time about a single memory the user captured. Answer only that " +
+        "question, in exactly the JSON shape requested, with no prose, no explanation and no " +
+        "markdown fences. Ground every answer in the memory's own words; never invent people, " +
+        "places, things or events that are not there. An empty answer is correct and expected " +
+        "when the memory does not contain what you were asked about."
+
 /** Echo's voice — shared across every cloud text feature. */
 internal const val ECHO_SYSTEM_PROMPT =
     "You are Echo, a personal memory companion. You speak to the user directly, warmly, and " +

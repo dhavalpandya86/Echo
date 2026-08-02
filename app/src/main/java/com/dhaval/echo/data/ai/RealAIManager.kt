@@ -2,9 +2,6 @@ package com.dhaval.echo.data.ai
 
 import android.content.Context
 import com.dhaval.echo.data.preferences.AiPreferences
-import com.dhaval.echo.data.understanding.ClaudeMemoryAnalyzer
-import com.dhaval.echo.data.understanding.CloudMemoryAnalyzer
-import com.dhaval.echo.data.understanding.EvidenceExtraction
 import com.dhaval.echo.domain.ai.*
 import com.dhaval.echo.domain.auth.AuthRepository
 import dagger.Lazy
@@ -172,6 +169,33 @@ class RealAIManager @Inject constructor(
     override fun getNarrativeService(): com.dhaval.echo.domain.ai.NarrativeService? =
         textCompleter()?.let { CloudNarrativeService(it) }
 
+    /**
+     * Extraction's own completion seam, with [EXTRACTION_SYSTEM_PROMPT] instead
+     * of Echo's persona. The extraction prompts carry their own full
+     * instructions and a strict output contract, so a warm conversational system
+     * prompt on top of them only makes the model chattier and the JSON less
+     * reliable.
+     */
+    override fun getExtractionCompleter(): com.dhaval.echo.domain.ai.TextCompleter? =
+        when (_currentProvider.value.id) {
+            "claude" -> claudeApiKey.takeIf { it.isNotBlank() }?.let { key ->
+                com.dhaval.echo.domain.ai.TextCompleter { prompt, max ->
+                    callClaude(key, prompt, EXTRACTION_SYSTEM_PROMPT, max)
+                }
+            }
+            "openai" -> openAiApiKey.takeIf { it.isNotBlank() }?.let { key ->
+                com.dhaval.echo.domain.ai.TextCompleter { prompt, max ->
+                    callOpenAI(key, prompt, EXTRACTION_SYSTEM_PROMPT, max)
+                }
+            }
+            "gemini" -> geminiApiKey.takeIf { it.isNotBlank() }?.let { key ->
+                com.dhaval.echo.domain.ai.TextCompleter { prompt, _ ->
+                    callGemini(key, "$EXTRACTION_SYSTEM_PROMPT\n\n$prompt")
+                }
+            }
+            else -> null
+        }
+
     override fun getSummaryService(): SummaryService {
         // Cloud when a key is set (real LLM summary, degrading to the on-device
         // extractive summary on failure); on-device otherwise. No more Fake.
@@ -184,12 +208,6 @@ class RealAIManager @Inject constructor(
         when (_currentProvider.value.id) {
             "claude" -> if (claudeApiKey.isNotBlank()) ClaudeTitleGenerationService(claudeApiKey) else LocalTitleGenerationService()
             else -> LocalTitleGenerationService()
-        }
-
-    override fun getTagSuggestionService(): TagSuggestionService =
-        when (_currentProvider.value.id) {
-            "claude" -> if (claudeApiKey.isNotBlank()) ClaudeTagSuggestionService(claudeApiKey) else LocalTagSuggestionService()
-            else -> LocalTagSuggestionService()
         }
 
     override fun getEmbeddingService(): EmbeddingService = object : EmbeddingService {
@@ -233,28 +251,16 @@ class RealAIManager @Inject constructor(
             else -> RealConversationService(memoryContextBuilder.get(), conversationRepository, this)
         }
 
-    override fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer> {
-        val local = localMemoryAnalyzers.toList()
-        // A keyed cloud provider does one structured-output extraction call per
-        // memory (reliable people/places/projects → populated Worlds), degrading
-        // to the local heuristics on failure. No key → on-device.
-        return when (_currentProvider.value.id) {
-            "claude" -> if (claudeApiKey.isNotBlank()) {
-                listOf(ClaudeMemoryAnalyzer(claudeApiKey, local))
-            } else local
-            "openai" -> if (openAiApiKey.isNotBlank()) {
-                listOf(CloudMemoryAnalyzer(local) { msg ->
-                    callOpenAI(openAiApiKey, msg, EvidenceExtraction.SYSTEM_PROMPT, maxOutputTokens = 1024)
-                })
-            } else local
-            "gemini" -> if (geminiApiKey.isNotBlank()) {
-                listOf(CloudMemoryAnalyzer(local) { msg ->
-                    callGemini(geminiApiKey, "${EvidenceExtraction.SYSTEM_PROMPT}\n\n$msg")
-                })
-            } else local
-            else -> local
-        }
-    }
+    /**
+     * The rules-based specialists, always. Cloud extraction is no longer routed
+     * here: it used to be one whole-board call per memory that *replaced* the
+     * local analyzers, whereas the staged pipeline asks each question separately
+     * and routes it by capability
+     * (see [com.dhaval.echo.data.understanding.RealExtractionEngineProvider]).
+     * These remain the floor every question falls back to.
+     */
+    override fun getMemoryAnalyzers(): List<com.dhaval.echo.domain.understanding.MemoryAnalyzer> =
+        localMemoryAnalyzers.toList()
 
     /**
      * Cloud vision for whichever of the three the user trusts enough to give a

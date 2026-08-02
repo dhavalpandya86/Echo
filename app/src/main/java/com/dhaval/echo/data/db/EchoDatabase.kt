@@ -27,9 +27,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         EntityNode::class,
         MemoryEntityLink::class,
         ExtractedItem::class,
-        EntityRelationship::class
+        EntityRelationship::class,
+        ExtractionRun::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -44,6 +45,53 @@ abstract class EchoDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "echo_db"
+
+        /**
+         * Memory Intelligence Pipeline: understanding becomes ~22 single-question
+         * extractors run one at a time in the background, so the pipeline needs to
+         * remember its own progress.
+         *
+         *  - `memory_extraction_runs` — one row per extractor per memory. Makes a
+         *    half-understood memory a durable, resumable state rather than a lost
+         *    one, and doubles as the progress channel the detail screen reads.
+         *  - `diary_entries.cleanedText` — the sentence-corrected text. Separate
+         *    from `transcript`, which must stay verbatim for playback alignment.
+         *  - `entity_relationships.asserted` — distinguishes an edge a model read
+         *    out of a sentence from one counted from co-occurrence.
+         *
+         * Entirely additive. Existing memories keep every conclusion they already
+         * have; they simply have no run rows until the backfill re-processes them.
+         * The new evidence kinds (OBJECT, ACTIVITY, INTENT, MEMORY_TYPE, CATEGORY,
+         * PRIORITY) need no schema change at all — `entities.type` and
+         * `extracted_items.kind` are TEXT precisely so the vocabulary can grow.
+         */
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `diary_entries` ADD COLUMN `cleanedText` TEXT")
+                db.execSQL("ALTER TABLE `entity_relationships` ADD COLUMN `asserted` INTEGER NOT NULL DEFAULT 0")
+
+                // Provenance: which question produced this row. Required for the
+                // runner to replace one extractor's output without disturbing the
+                // other 21 — the whole basis of incremental, resumable extraction.
+                // Nullable: rows written before the pipeline existed have no
+                // extractor, and a full re-process replaces them anyway.
+                db.execSQL("ALTER TABLE `memory_entity_links` ADD COLUMN `extractorId` TEXT")
+                db.execSQL("ALTER TABLE `extracted_items` ADD COLUMN `extractorId` TEXT")
+
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `memory_extraction_runs` (
+                        `memoryId` TEXT NOT NULL, `extractorId` TEXT NOT NULL,
+                        `userId` TEXT NOT NULL, `status` TEXT NOT NULL,
+                        `engine` TEXT NOT NULL, `evidenceCount` INTEGER NOT NULL,
+                        `startedAt` TEXT NOT NULL, `completedAt` TEXT,
+                        `latencyMs` INTEGER, `error` TEXT,
+                        PRIMARY KEY(`memoryId`, `extractorId`),
+                        FOREIGN KEY(`memoryId`) REFERENCES `diary_entries`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_extraction_runs_memoryId` ON `memory_extraction_runs` (`memoryId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_extraction_runs_userId` ON `memory_extraction_runs` (`userId`)")
+            }
+        }
 
         /**
          * Auto-suggested collections: link an AI-generated collection back to the

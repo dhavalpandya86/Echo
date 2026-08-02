@@ -6,25 +6,28 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.dhaval.echo.data.db.DiaryEntry
 import com.dhaval.echo.data.db.DiaryEntryDao
-import com.dhaval.echo.domain.ai.AIManager
+import com.dhaval.echo.data.understanding.StagedUnderstandingRunner
 import com.dhaval.echo.domain.auth.AuthRepository
 import com.dhaval.echo.domain.tags.TagRepository
-import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import com.dhaval.echo.domain.understanding.SourceKind
+import com.dhaval.echo.domain.understanding.Stage
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.last
 
 /**
- * One-shot backfill: re-runs the Understanding stage over every existing memory so
- * memories captured before the entity graph / feelings / Worlds landed get their
- * entities, links, feelings, and graph edges too.
+ * One-shot backfill: re-asks every understanding question about every existing
+ * memory, so memories captured before a question existed still get answered.
  *
- * It reuses each memory's already-stored transcript + written text — no
- * re-transcription, no re-OCR, no Claude calls — so it's cheap and offline. The
- * Understanding write is idempotent per memory, so running this twice is safe.
+ * It reuses each memory's already-stored text — no re-transcription, no re-OCR —
+ * so it is as cheap as the engines behind the questions. Every write is
+ * idempotent per memory, and `force` clears the previous run records so
+ * questions that already settled under an older registry are asked again.
+ *
+ * Runs the memories one at a time rather than in parallel. On-device models hold
+ * a single engine instance and a phone has one set of cores; a fan-out here
+ * would contend for both and finish no sooner.
  */
 @HiltWorker
 class UnderstandingBackfillWorker @AssistedInject constructor(
@@ -32,9 +35,8 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val diaryEntryDao: DiaryEntryDao,
     private val understandingDao: com.dhaval.echo.data.db.UnderstandingDao,
-    private val understandingService: MemoryUnderstandingService,
+    private val runner: StagedUnderstandingRunner,
     private val tagRepository: TagRepository,
-    private val aiManager: AIManager,
     private val authRepository: AuthRepository,
     private val collectionSuggestionService: com.dhaval.echo.data.collections.CollectionSuggestionService
 ) : CoroutineWorker(context, params) {
@@ -55,9 +57,15 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
                 continue
             }
             runCatching {
-                understandingService.understand(normalizedContentFor(entry, userId, text))
+                runner.run(
+                    content = normalizedContentFor(entry, userId, text),
+                    // PREPARE is skipped: the text is already stored, and
+                    // re-cleaning it would rewrite what the user has been reading.
+                    stages = setOf(Stage.GROUND, Stage.INTERPRET, Stage.NARRATE),
+                    force = true
+                )
             }.onFailure { Log.e(TAG, "Backfill understanding failed for ${entry.id}", it) }
-            runCatching { refreshTags(entry.id, text) }
+            runCatching { refreshTags(entry.id) }
                 .onFailure { Log.w(TAG, "Backfill tag refresh failed for ${entry.id}", it) }
             // Recompute the e5 embedding + related-memory links for this entry.
             EmbeddingWorker.enqueue(applicationContext, entry.id)
@@ -74,19 +82,21 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
     }
 
     /**
-     * Replace the old fixed-placeholder tags with real, content-derived ones.
-     * Only the exact legacy placeholder trio is removed — genuine user tags are
-     * left alone — then fresh tags are added (adding is idempotent).
+     * Replace placeholder and keyword tags with the entities the graph actually
+     * extracted.
+     *
+     * Removes both the old fixed placeholder trio and any tag that is not an
+     * entity this memory names — that is how the word-frequency tags
+     * ("Need", "Next", "Take") get cleaned off memories that already have them.
+     * A tag the user typed themselves survives, because it is compared against
+     * the whole set of entity names, not deleted blindly.
      */
-    private suspend fun refreshTags(entryId: String, text: String) {
+    private suspend fun refreshTags(entryId: String) {
         val existing = tagRepository.getTagsForEntry(entryId).first().toSet()
         if (existing.containsAll(LEGACY_PLACEHOLDER_TAGS)) {
             LEGACY_PLACEHOLDER_TAGS.forEach { tagRepository.removeTagFromEntry(entryId, it) }
         }
 
-        // Prefer the specific entities the graph just extracted (people, places,
-        // projects…) — the same source the live pipeline now tags from. Keyword
-        // tags are only a floor for memories that surfaced no entities.
         val entityNames = understandingDao.getLinkedEntitiesOnce(entryId)
             .asSequence()
             .filter { !it.inferred && it.type in TAGGABLE_ENTITY_TYPES }
@@ -96,12 +106,9 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
             .take(MAX_ENTITY_TAGS)
             .toList()
 
-        if (entityNames.isNotEmpty()) {
-            entityNames.forEach { tagRepository.addTagToEntry(entryId, it) }
-        } else {
-            aiManager.getTagSuggestionService().suggestTags(text).last()
-                .forEach { tagRepository.addTagToEntry(entryId, it) }
-        }
+        entityNames.forEach { tagRepository.addTagToEntry(entryId, it) }
+        // No keyword floor. A memory that names nothing gets no tags — see
+        // UnderstandingWorker.applyEntityTags for why that is the honest answer.
     }
 
     /**
@@ -130,7 +137,8 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
             userId = userId,
             text = text,
             sourceKinds = kinds.ifEmpty { setOf(SourceKind.TEXT) },
-            capturedAt = entry.createdAt
+            capturedAt = entry.createdAt,
+            imagePaths = entry.imagePaths.orEmpty()
         )
     }
 
@@ -142,8 +150,9 @@ class UnderstandingBackfillWorker @AssistedInject constructor(
         private val LEGACY_PLACEHOLDER_TAGS = listOf("Personal", "Reflection", "Voice")
 
         private const val MAX_ENTITY_TAGS = 8
-        private val TAGGABLE_ENTITY_TYPES =
-            setOf("PERSON", "PROJECT", "TOPIC", "PLACE", "ORG", "PRODUCT")
+        private val TAGGABLE_ENTITY_TYPES = setOf(
+            "PERSON", "PROJECT", "TOPIC", "PLACE", "ORG", "PRODUCT", "ACTIVITY", "OBJECT"
+        )
 
         /** Enqueue the one-shot backfill; KEEP so repeated taps don't pile up. */
         fun enqueue(context: Context) {

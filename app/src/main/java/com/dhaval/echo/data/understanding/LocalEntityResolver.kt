@@ -2,16 +2,24 @@ package com.dhaval.echo.data.understanding
 
 import android.util.Log
 import com.dhaval.echo.data.db.EntityNode
+import com.dhaval.echo.data.db.EntityRelation
+import com.dhaval.echo.data.db.EntityRelationship
 import com.dhaval.echo.data.db.EntityType
 import com.dhaval.echo.data.db.ExtractedItem
+import com.dhaval.echo.data.db.ExtractionRun
+import com.dhaval.echo.data.db.ExtractionRunStatus
 import com.dhaval.echo.data.db.ItemKind
 import com.dhaval.echo.data.db.ItemStatus
 import com.dhaval.echo.data.db.LinkRelation
 import com.dhaval.echo.data.db.MemoryEntityLink
 import com.dhaval.echo.data.db.UnderstandingDao
+import com.dhaval.echo.domain.understanding.AssertedRelation
 import com.dhaval.echo.domain.understanding.EntityResolver
 import com.dhaval.echo.domain.understanding.Evidence
 import com.dhaval.echo.domain.understanding.EvidenceKind
+import com.dhaval.echo.domain.understanding.ExtractorOutcome
+import com.dhaval.echo.domain.understanding.ExtractorOutput
+import com.dhaval.echo.domain.understanding.ExtractorRunRecord
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import java.time.LocalDateTime
 import java.util.UUID
@@ -20,7 +28,12 @@ import javax.inject.Inject
 private val kindToItem = mapOf(
     EvidenceKind.TASK to ItemKind.TASK,
     EvidenceKind.REMINDER to ItemKind.REMINDER,
-    EvidenceKind.DECISION to ItemKind.DECISION
+    EvidenceKind.DECISION to ItemKind.DECISION,
+    // Facets: one interpretive verdict about the memory, no lifecycle.
+    EvidenceKind.INTENT to ItemKind.INTENT,
+    EvidenceKind.MEMORY_TYPE to ItemKind.MEMORY_TYPE,
+    EvidenceKind.CATEGORY to ItemKind.CATEGORY,
+    EvidenceKind.PRIORITY to ItemKind.PRIORITY
 )
 
 private fun normalize(name: String): String =
@@ -81,6 +94,8 @@ class LocalEntityResolver @Inject constructor(
         EvidenceKind.PLACE to EntityType.PLACE,
         EvidenceKind.ORG to EntityType.ORG,
         EvidenceKind.PRODUCT to EntityType.PRODUCT,
+        EvidenceKind.ACTIVITY to EntityType.ACTIVITY,
+        EvidenceKind.OBJECT to EntityType.OBJECT,
         // Phase B: a feeling is a recurring identity, so it joins the graph.
         EvidenceKind.MOOD to EntityType.FEELING
     )
@@ -92,6 +107,8 @@ class LocalEntityResolver @Inject constructor(
         EvidenceKind.PLACE to LinkRelation.LOCATED_AT,
         EvidenceKind.ORG to LinkRelation.INVOLVES,
         EvidenceKind.PRODUCT to LinkRelation.INVOLVES,
+        EvidenceKind.ACTIVITY to LinkRelation.DID,
+        EvidenceKind.OBJECT to LinkRelation.ABOUT,
         EvidenceKind.MOOD to LinkRelation.FELT
     )
 
@@ -175,6 +192,202 @@ class LocalEntityResolver @Inject constructor(
             "Resolved memory ${content.memoryId}: ${links.size} stated + " +
                 "${inferredLinks.size} inferred links (${touchedEntityIds.size} entities), ${items.size} items"
         )
+    }
+
+    // ── Incremental path (staged pipeline) ───────────────────────────
+
+    override suspend fun persistExtractorOutput(
+        content: NormalizedContent,
+        record: ExtractorRunRecord,
+        output: ExtractorOutput
+    ) {
+        val now = LocalDateTime.now()
+        val run = ExtractionRun(
+            memoryId = content.memoryId,
+            extractorId = record.extractorId,
+            userId = content.userId,
+            status = when (record.outcome) {
+                ExtractorOutcome.COMPLETED -> ExtractionRunStatus.COMPLETED
+                ExtractorOutcome.FAILED -> ExtractionRunStatus.FAILED
+                ExtractorOutcome.SKIPPED -> ExtractionRunStatus.SKIPPED
+            },
+            engine = record.engineId,
+            evidenceCount = record.evidenceCount,
+            startedAt = record.startedAt,
+            completedAt = record.completedAt,
+            latencyMs = record.latencyMs,
+            error = record.error
+        )
+
+        when (output) {
+            is ExtractorOutput.Facts ->
+                dao.replaceExtractorOutput(
+                    run,
+                    links = buildLinks(content, record.extractorId, output.evidence, now),
+                    items = buildItems(content, record.extractorId, output.evidence, now)
+                )
+
+            is ExtractorOutput.Relations -> {
+                persistRelations(content, output.edges, now)
+                // Relations live in their own table, so this extractor owns no
+                // link or item rows — an empty replace still clears anything a
+                // previous run of it left behind.
+                dao.replaceExtractorOutput(run, emptyList(), emptyList())
+            }
+
+            // Text answers are written onto the memory by the caller before we
+            // get here (see StagedUnderstandingRunner), so a crash between the
+            // two leaves no run row and the question is simply asked again.
+            is ExtractorOutput.Text,
+            ExtractorOutput.Empty ->
+                dao.replaceExtractorOutput(run, emptyList(), emptyList())
+        }
+
+        // Keep denormalised counts honest as each extractor lands.
+        if (output is ExtractorOutput.Facts) {
+            dao.getLinkedEntitiesOnce(content.memoryId)
+                .map { it.entityId }
+                .distinct()
+                .forEach { dao.refreshEntityStats(it, now) }
+        }
+    }
+
+    override suspend fun finalizeMemory(content: NormalizedContent) {
+        val now = LocalDateTime.now()
+
+        // Which entities this memory actually named — read back from what the
+        // extractors persisted, so no state has to be threaded through the run.
+        val stated = dao.getLinkedEntitiesOnce(content.memoryId)
+            .filter { !it.inferred }
+            .map { it.entityId }
+            .toSet()
+
+        if (stated.isEmpty()) {
+            Log.d(TAG, "Memory ${content.memoryId} named no entities — nothing to expand")
+            return
+        }
+
+        // Stage 6 runs once, over everything the memory named together. Its
+        // links belong to the expansion pass rather than to any one question,
+        // so they carry no extractorId and are replaced wholesale each time.
+        dao.deleteInferredLinksForMemory(content.memoryId)
+        val inferred = expandByCoOccurrence(content, stated, now)
+        if (inferred.isNotEmpty()) {
+            dao.insertLinks(inferred)
+            inferred.forEach { dao.refreshEntityStats(it.entityId, now) }
+        }
+
+        graphMaintainer.rebuildEdgesFor(content.userId, stated, now)
+
+        Log.i(
+            TAG,
+            "Finalized memory ${content.memoryId}: ${stated.size} stated entities, " +
+                "${inferred.size} inferred links"
+        )
+    }
+
+    private fun buildItems(
+        content: NormalizedContent,
+        extractorId: String,
+        evidence: List<Evidence>,
+        now: LocalDateTime
+    ): List<ExtractedItem> =
+        reconcileItemEvidence(evidence).map { ev ->
+            ExtractedItem(
+                id = UUID.randomUUID().toString(),
+                memoryId = content.memoryId,
+                userId = content.userId,
+                kind = kindToItem.getValue(ev.kind),
+                value = ev.value,
+                dueAtMillis = ev.dueAtMillis,
+                confidence = ev.confidence,
+                evidence = ev.evidenceText,
+                status = ItemStatus.OPEN,
+                createdAt = now,
+                extractorId = extractorId
+            )
+        }
+
+    private suspend fun buildLinks(
+        content: NormalizedContent,
+        extractorId: String,
+        evidence: List<Evidence>,
+        now: LocalDateTime
+    ): List<MemoryEntityLink> {
+        val entityEvidence = evidence
+            .filter { it.kind in kindToType }
+            .groupBy { it.kind to normalize(it.value) }
+            .map { (_, claims) -> claims.maxBy { it.confidence } }
+
+        return entityEvidence.map { ev ->
+            val type = kindToType.getValue(ev.kind)
+            val entity = findExisting(content.userId, type, ev.value)
+                ?: EntityNode(
+                    id = UUID.randomUUID().toString(),
+                    userId = content.userId,
+                    type = type,
+                    name = ev.value,
+                    normalizedName = normalize(ev.value),
+                    firstSeenAt = now,
+                    lastSeenAt = now
+                ).also {
+                    dao.insertEntity(it)
+                    Log.d(TAG, "New ${type.lowercase()} entity: ${ev.value}")
+                }
+
+            MemoryEntityLink(
+                id = UUID.randomUUID().toString(),
+                memoryId = content.memoryId,
+                entityId = entity.id,
+                relation = kindToRelation.getValue(ev.kind),
+                confidence = ev.confidence,
+                evidence = ev.evidenceText,
+                inferred = false,
+                createdAt = now,
+                extractorId = extractorId
+            )
+        }
+    }
+
+    /**
+     * Edges a model read out of the memory ("Prabir does Swimming").
+     *
+     * Only connects entities the memory already named — a relation naming
+     * something that was never extracted is a sign the model invented one side
+     * of it, so it is dropped rather than creating a node no question found.
+     */
+    private suspend fun persistRelations(
+        content: NormalizedContent,
+        edges: List<AssertedRelation>,
+        now: LocalDateTime
+    ) {
+        val known = dao.getLinkedEntitiesOnce(content.memoryId)
+            .filter { !it.inferred }
+            .associateBy { normalize(it.name) }
+
+        for (edge in edges) {
+            val source = known[normalize(edge.sourceName)] ?: continue
+            val target = known[normalize(edge.targetName)] ?: continue
+            if (source.entityId == target.entityId) continue
+
+            runCatching {
+                dao.upsertAssertedRelationship(
+                    EntityRelationship(
+                        id = UUID.randomUUID().toString(),
+                        userId = content.userId,
+                        sourceEntityId = source.entityId,
+                        targetEntityId = target.entityId,
+                        relation = EntityRelation.RELATED_TO,
+                        weight = 1,
+                        confidence = edge.confidence,
+                        evidence = edge.evidenceText ?: edge.relation,
+                        firstSeenAt = now,
+                        lastSeenAt = now,
+                        asserted = true
+                    )
+                )
+            }.onFailure { Log.w(TAG, "Could not store relation ${edge.sourceName}→${edge.targetName}", it) }
+        }
     }
 
     /**

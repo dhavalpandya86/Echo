@@ -65,7 +65,15 @@ class LocalPersonAnalyzer @Inject constructor() : MemoryAnalyzer {
     // (they often start a sentence, capitalized) but names must be capitalized.
     private val patterns = listOf(
         // 1. interaction verb / preposition → name
-        Regex("""\b(?i:call(?:ed|ing)?|meet(?:ing)?|met|with|tell|told|ask(?:ed)?|email(?:ed)?|text(?:ed)?|message(?:d)?|visit(?:ed)?|thank(?:ed)?|saw|see|from|remind)\s+([A-Z][a-z]{1,})\b"""),
+        //
+        // The caretaking verbs (take, bring, drop, pick up, collect, teach…)
+        // were the gap that made this analyzer miss most family notes: "I need
+        // to take Prabir for swimming" names a person as plainly as "call Raj"
+        // does, but only the second kind of sentence used to be recognised.
+        Regex("""\b(?i:call(?:ed|ing)?|meet(?:ing)?|met|with|tell|told|ask(?:ed)?|email(?:ed)?|text(?:ed)?|message(?:d)?|visit(?:ed)?|thank(?:ed)?|saw|see|from|remind|tak(?:e|ing)|took|bring(?:ing)?|brought|drop(?:ping|ped)?|pick(?:ing|ed)?\s+up|collect(?:ed|ing)?|help(?:ed|ing)?|teach(?:ing)?|taught|show(?:ed|ing)?|send|sent|give|gave|join(?:ed|ing)?|invit(?:e|ed|ing))\s+([A-Z][a-z]{1,})\b"""),
+        // 1b. doing something *for* someone — "buy goggles for Prabir".
+        //     Gated on a transfer verb so it can't swallow "for Christmas".
+        Regex("""\b(?i:buy|bought|get|got|book(?:ed)?|order(?:ed)?|bring|brought|send|sent|make|made|pack(?:ed)?|arrange(?:d)?)\b[^.!?\n]{0,40}?\bfor\s+([A-Z][a-z]{1,})\b"""),
         // 2. relationship word → name
         Regex("""\b(?i:my|our|his|her|their)\s+(?i:friend|brother|sister|mom|mother|dad|father|son|daughter|kid|wife|husband|boss|colleague|coworker|cousin|uncle|aunt|partner|boyfriend|girlfriend|neighbou?r|teammate|manager|mentor)s?\s+([A-Z][a-z]{1,})\b"""),
         // 3. name in subject position doing something human
@@ -159,6 +167,174 @@ class LocalPlaceAnalyzer @Inject constructor() : MemoryAnalyzer {
             .toList()
 }
 
+// ── Specialist: Activities ────────────────────────────────────────────
+
+/**
+ * Finds things the user or someone they know *does*, from a lexicon of
+ * recurring life activities.
+ *
+ * Lexicon rather than pattern-matching because an activity is only useful when
+ * it recurs under the same name: "swimming", "went swimming" and "Prabir's
+ * swimming" must all become the one Swimming entity, or the graph fills up with
+ * near-duplicates that never group. A fixed vocabulary guarantees that at the
+ * cost of missing activities nobody listed — which a model handles when one is
+ * installed.
+ */
+class LocalActivityAnalyzer @Inject constructor() : MemoryAnalyzer {
+    override val kinds = setOf(EvidenceKind.ACTIVITY)
+
+    /** Canonical name → the surface forms that mean it. */
+    private val lexicon = mapOf(
+        "Swimming" to listOf("swimming", "swim class", "swim lesson", "swim practice"),
+        "Cricket" to listOf("cricket", "cricket practice", "cricket match"),
+        "Football" to listOf("football", "soccer"),
+        "Tennis" to listOf("tennis"),
+        "Badminton" to listOf("badminton"),
+        "Gym" to listOf("gym", "workout", "working out", "weight training"),
+        "Yoga" to listOf("yoga"),
+        "Running" to listOf("running", "jog", "jogging", "a run", "marathon"),
+        "Cycling" to listOf("cycling", "bike ride", "cycle ride"),
+        "Walking" to listOf("a walk", "walking", "hike", "hiking", "trek"),
+        "Dance" to listOf("dance class", "dancing", "dance practice"),
+        "Music practice" to listOf("piano", "guitar", "violin", "music class", "music lesson"),
+        "School" to listOf("school", "parents evening", "parent teacher"),
+        "Tuition" to listOf("tuition", "tutor", "coaching class"),
+        "Exam" to listOf("exam", "test paper", "board exam"),
+        "Meeting" to listOf("meeting", "standup", "stand-up", "review call", "sync"),
+        "Interview" to listOf("interview"),
+        "Travel" to listOf("flight", "train", "road trip", "travelling", "traveling"),
+        "Shopping" to listOf("shopping", "grocery", "groceries"),
+        "Cooking" to listOf("cooking", "making dinner", "meal prep"),
+        "Doctor appointment" to listOf("doctor", "clinic", "check-up", "checkup", "physio"),
+        "Dentist appointment" to listOf("dentist", "dental"),
+        "Birthday" to listOf("birthday"),
+        "Wedding" to listOf("wedding"),
+        "Party" to listOf("party", "get-together", "gathering"),
+        "Movie" to listOf("movie", "cinema", "film")
+    )
+
+    override suspend fun analyze(content: NormalizedContent): List<Evidence> {
+        val lower = content.text.lowercase()
+        return lexicon.mapNotNull { (activity, cues) ->
+            // Longest cue first so "swim lesson" wins over "swim".
+            val cue = cues.sortedByDescending { it.length }
+                .firstOrNull { Regex("""\b${Regex.escape(it)}""").containsMatchIn(lower) }
+                ?: return@mapNotNull null
+            Evidence(
+                kind = EvidenceKind.ACTIVITY,
+                value = activity,
+                evidenceText = content.text.sentenceContaining(cue),
+                confidence = 0.6f
+            )
+        }.take(3)
+    }
+}
+
+// ── Specialist: Objects ───────────────────────────────────────────────
+
+/**
+ * Finds concrete things the memory is about — what to buy, bring, or find.
+ *
+ * Works from a lexicon of head nouns plus up to two words of modifier, so
+ * "swimming glasses" and "school uniform" survive as whole phrases rather than
+ * collapsing to "glasses" and "uniform". The modifier is what makes an object
+ * worth retrieving by later.
+ *
+ * Note what this cannot do: the user's own example, "swimming glasses", is
+ * almost certainly goggles. Rules will faithfully record the words that were
+ * said; working out what was *meant* needs a model, and that is exactly the
+ * line between this floor and the reasoning capability.
+ */
+class LocalObjectAnalyzer @Inject constructor() : MemoryAnalyzer {
+    override val kinds = setOf(EvidenceKind.OBJECT)
+
+    private val headNouns = listOf(
+        "glasses", "goggles", "spectacles", "shoes", "uniform", "kit", "bag", "costume",
+        "passport", "visa", "ticket", "tickets", "boarding pass", "licence", "license",
+        "gift", "present", "cake", "card", "flowers",
+        "medicine", "tablets", "prescription", "report", "reports",
+        "keys", "charger", "cable", "laptop", "phone", "camera", "headphones",
+        "book", "books", "notebook", "stationery", "supplies",
+        "documents", "papers", "form", "forms", "certificate", "invoice", "receipt"
+    )
+
+    private val pattern = Regex(
+        """\b((?:[a-z]+\s+){0,2}(?:${headNouns.joinToString("|") { Regex.escape(it) }}))\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** Words that turn up before a noun but are not part of its name. */
+    private val modifierStoplist = setOf(
+        "the", "a", "an", "my", "his", "her", "their", "our", "your", "its",
+        "some", "any", "this", "that", "these", "those", "new", "old",
+        "to", "for", "of", "and", "or", "with", "buy", "get", "bring", "take",
+        "need", "want", "find", "pick", "up", "collect", "his", "is", "was"
+    )
+
+    override suspend fun analyze(content: NormalizedContent): List<Evidence> =
+        pattern.findAll(content.text)
+            .map { match ->
+                match.groupValues[1].trim()
+                    .split(Regex("""\s+"""))
+                    .dropWhile { it.lowercase() in modifierStoplist }
+                    .joinToString(" ")
+            }
+            .filter { it.isNotBlank() }
+            .map { phrase -> phrase.replaceFirstChar { it.uppercase() } }
+            .distinctBy { it.lowercase() }
+            .take(4)
+            .map { phrase ->
+                Evidence(
+                    kind = EvidenceKind.OBJECT,
+                    value = phrase,
+                    evidenceText = content.text.sentenceContaining(phrase),
+                    confidence = 0.55f
+                )
+            }
+            .toList()
+}
+
+// ── Specialist: Topics ────────────────────────────────────────────────
+
+/**
+ * Finds recurring subjects a memory discusses, from a lexicon of the themes a
+ * personal diary actually returns to.
+ *
+ * This closes a real gap: TOPIC had no on-device analyzer at all, so a user
+ * with no model got no topics — and therefore no auto-Collections and thin
+ * Worlds, both of which are built from topic entities.
+ */
+class LocalTopicAnalyzer @Inject constructor() : MemoryAnalyzer {
+    override val kinds = setOf(EvidenceKind.TOPIC)
+
+    private val lexicon = mapOf(
+        "Health" to listOf("health", "blood pressure", "sugar level", "diet", "symptoms", "recovery"),
+        "Fitness" to listOf("fitness", "weight loss", "training plan", "steps"),
+        "Finances" to listOf("budget", "salary", "loan", "emi", "insurance", "investment", "tax", "savings"),
+        "Education" to listOf("admission", "syllabus", "homework", "results", "scholarship", "fees"),
+        "Career" to listOf("promotion", "appraisal", "resignation", "job offer", "new role"),
+        "Home" to listOf("renovation", "repair", "plumber", "electrician", "rent", "landlord", "moving house"),
+        "Vehicle" to listOf("car service", "insurance renewal", "puncture", "petrol", "bike service"),
+        "Travel plans" to listOf("itinerary", "booking", "hotel", "visa application", "packing"),
+        "Relationships" to listOf("argument", "apology", "misunderstanding", "catch up", "reconcile"),
+        "Parenting" to listOf("parenting", "school run", "bedtime", "screen time", "milestone")
+    )
+
+    override suspend fun analyze(content: NormalizedContent): List<Evidence> {
+        val lower = content.text.lowercase()
+        return lexicon.mapNotNull { (topic, cues) ->
+            val cue = cues.firstOrNull { Regex("""\b${Regex.escape(it)}""").containsMatchIn(lower) }
+                ?: return@mapNotNull null
+            Evidence(
+                kind = EvidenceKind.TOPIC,
+                value = topic,
+                evidenceText = content.text.sentenceContaining(cue),
+                confidence = 0.5f
+            )
+        }.take(3)
+    }
+}
+
 // ── Specialist: Tasks ─────────────────────────────────────────────────
 
 /**
@@ -232,15 +408,22 @@ class LocalReminderAnalyzer @Inject constructor() : MemoryAnalyzer {
 class LocalMoodAnalyzer @Inject constructor() : MemoryAnalyzer {
     override val kinds = setOf(EvidenceKind.MOOD)
 
+    // Values match ExtractorRegistry.MOODS so a memory read by rules and one
+    // read by a model land on the same feeling names — otherwise the same mood
+    // would split into two entities depending on what was installed that week.
     private val lexicon = mapOf(
         "Happy" to listOf("happy", "glad", "wonderful", "delighted", "joy"),
         "Excited" to listOf("excited", "thrilled", "can't wait", "amazing"),
-        "Inspired" to listOf("inspired", "inspiring", "sparked an idea"),
-        "Motivated" to listOf("motivated", "determined", "focused"),
+        "Motivated" to listOf("motivated", "determined", "focused", "inspired", "inspiring"),
         "Grateful" to listOf("grateful", "thankful", "blessed"),
+        "Proud" to listOf("proud", "so pleased with", "did really well"),
+        "Hopeful" to listOf("hopeful", "fingers crossed", "looking forward"),
+        "Calm" to listOf("calm", "peaceful", "relaxed", "at ease"),
+        "Reflective" to listOf("thinking about", "looking back", "makes me wonder"),
         "Frustrated" to listOf("frustrated", "annoyed", "angry", "fed up"),
         "Anxious" to listOf("worried", "anxious", "nervous", "stressed"),
         "Sad" to listOf("sad", "upset", "heartbroken", "miss him", "miss her"),
+        "Disappointed" to listOf("disappointed", "let down", "gutted"),
         "Tired" to listOf("tired", "exhausted", "drained"),
         "Confused" to listOf("confused", "unsure", "torn", "don't know what")
     )

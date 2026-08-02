@@ -260,17 +260,8 @@ class ClaudeTitleGenerationService(private val apiKey: String) : TitleGeneration
     }
 }
 
-class ClaudeTagSuggestionService(private val apiKey: String) : TagSuggestionService {
-    override fun suggestTags(text: String): Flow<List<String>> = flow {
-        if (text.isBlank()) { emit(emptyList()); return@flow }
-        val prompt = "Suggest 3-5 short, relevant tags for this diary entry. Return ONLY the tags, one per line, no numbers, no hashes, no punctuation:\n\n${text.take(600)}"
-        val result = try {
-            val response = callClaude(apiKey, prompt, maxTokens = 80)
-            response.split("\n").map { it.trim() }.filter { it.isNotBlank() && it.length < 30 }.take(5)
-        } catch (e: Exception) {
-            android.util.Log.e(CLAUDE_TAG, "suggestTags failed — emitting no tags", e)
-            emptyList()
-        }
-        emit(result)
-    }
-}
+// ClaudeTagSuggestionService is gone with the rest of the tag-suggestion layer.
+// Tags are the names of entities the pipeline extracted, so asking a model for
+// "3-5 relevant tags" as a separate question duplicated work the people /
+// places / activities extractors already do — and did it without evidence,
+// confidence, or any identity that would let the same tag recur as one thing.

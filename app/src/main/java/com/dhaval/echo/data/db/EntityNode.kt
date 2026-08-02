@@ -71,6 +71,22 @@ object EntityType {
     const val PRODUCT = "PRODUCT"
 
     /**
+     * Something the user *does* — "Swimming", "Gym", "School run". Kept apart
+     * from TOPIC because an activity recurs as a schedulable, participatory
+     * thing ("everything about Prabir's swimming"), while a topic is only
+     * something discussed.
+     */
+    const val ACTIVITY = "ACTIVITY"
+
+    /**
+     * A physical thing that recurs — "swimming goggles", "passport", "car keys".
+     * Deliberately distinct from PRODUCT: a product is a branded commercial item
+     * the user might own or buy; an object is any concrete noun worth retrieving
+     * by. Merging them would lose the distinction the detail screen shows.
+     */
+    const val OBJECT = "OBJECT"
+
+    /**
      * A feeling the user expressed ("Excited", "Anxious"). Graduated from a
      * per-memory item to a first-class node (Phase B) so it recurs as one
      * identity and joins the graph — letting Echo see what a feeling co-occurs

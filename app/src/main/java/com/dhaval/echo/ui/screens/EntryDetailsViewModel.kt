@@ -16,6 +16,23 @@ import java.util.Locale
 import javax.inject.Inject
 
 /**
+ * How far through its ~22 questions this memory is.
+ *
+ * Understanding runs in the background long after capture, so the screen has to
+ * be able to say "still working" without pretending a half-understood memory is
+ * broken. Derived from the run rows, which means it survives the app being
+ * killed and resumes counting where it left off.
+ */
+data class UnderstandingProgress(
+    val settled: Int = 0,
+    val total: Int = 0,
+    val failed: Int = 0
+) {
+    /** True while questions remain unanswered — the only thing the UI shows. */
+    val inProgress: Boolean get() = total > 0 && settled < total
+}
+
+/**
  * UI State for the Entry Details screen.
  */
 data class EntryDetailsUiState(
@@ -30,8 +47,17 @@ data class EntryDetailsUiState(
     val classification: com.dhaval.echo.data.db.MemoryClassificationEntity? = null,
     // Memory Understanding Engine (MU-0): what Echo concluded about this memory
     val linkedEntities: List<com.dhaval.echo.data.db.LinkedEntityView> = emptyList(),
-    val extractedItems: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList()
-)
+    val extractedItems: List<com.dhaval.echo.data.db.ExtractedItem> = emptyList(),
+    val understandingProgress: UnderstandingProgress = UnderstandingProgress()
+) {
+    /**
+     * The interpretive verdicts — memory type, category, priority, intent.
+     * Split out from [extractedItems] because they render as a facet row rather
+     * than as action items, and because they carry no lifecycle.
+     */
+    val facets: List<com.dhaval.echo.data.db.ExtractedItem>
+        get() = extractedItems.filter { it.kind in com.dhaval.echo.data.db.ItemKind.FACETS }
+}
 
 @HiltViewModel
 class EntryDetailsViewModel @Inject constructor(
@@ -64,11 +90,14 @@ class EntryDetailsViewModel @Inject constructor(
             tagRepository.getTagsForEntry(entryId),
             collectionRepository.getCollectionsForEntry(entryId),
             intelligenceDao.getRelatedEntries(entryId, userId),
-            // MUE graph output: entity links + evidence-board items together
+            // MUE graph output: entity links, evidence-board items, and how far
+            // through its questions the memory is — all live, so the screen
+            // fills in as each extractor lands rather than all at once.
             combine(
                 understandingDao.getLinkedEntities(entryId),
-                understandingDao.getItemsForMemory(entryId)
-            ) { links, items -> links to items }
+                understandingDao.getItemsForMemory(entryId),
+                understandingDao.getRunsForMemory(entryId)
+            ) { links, items, runs -> Triple(links, items, runs) }
         ) { entry, tags, collections, related, understanding ->
         if (entry == null) {
             EntryDetailsUiState(isLoading = false, error = "Entry not found")
@@ -80,7 +109,10 @@ class EntryDetailsViewModel @Inject constructor(
                     audioPath = entry.audioPath,
                     durationMillis = entry.duration,
                     timestamp = entry.createdAt,
-                    transcription = entry.transcript,
+                    // The corrected sentence when we have one — that is what the
+                    // user should read. The raw transcript stays in the database
+                    // for playback alignment either way.
+                    transcription = entry.readableText,
                     summary = entry.summary,
                     transcriptionStatus = entry.transcriptionStatus,
                     analysisStatus = entry.analysisStatus,
@@ -100,6 +132,16 @@ class EntryDetailsViewModel @Inject constructor(
                 collections = collections,
                 linkedEntities = understanding.first,
                 extractedItems = understanding.second,
+                understandingProgress = UnderstandingProgress(
+                    settled = understanding.third.count {
+                        it.status == com.dhaval.echo.data.db.ExtractionRunStatus.COMPLETED ||
+                            it.status == com.dhaval.echo.data.db.ExtractionRunStatus.SKIPPED
+                    },
+                    total = com.dhaval.echo.domain.understanding.ExtractorRegistry.size,
+                    failed = understanding.third.count {
+                        it.status == com.dhaval.echo.data.db.ExtractionRunStatus.FAILED
+                    }
+                ),
                 relatedEntries = related.map {
                     TimelineEntry(
                         id = it.id,

@@ -7,24 +7,29 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.ListenableWorker.Result
 import com.dhaval.echo.data.db.*
+import com.dhaval.echo.data.understanding.StagedUnderstandingRunner
 import com.dhaval.echo.domain.ai.AIManager
 import com.dhaval.echo.domain.ai.IntelligenceStatus
-import com.dhaval.echo.domain.tags.TagRepository
-import com.dhaval.echo.domain.understanding.MemoryUnderstandingService
 import com.dhaval.echo.domain.understanding.NormalizedContent
 import com.dhaval.echo.domain.understanding.SourceKind
+import com.dhaval.echo.domain.understanding.Stage
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.last
 import java.io.File
 
 /**
- * Runs the intelligence pipeline for a single memory.
+ * Gets a memory readable, fast.
  *
- * A memory may be voice, text, photos, or any mix of them, so the pipeline is
- * split in two: resolve the memory's *source text* (transcribing audio only when
- * there is audio), then analyse that text. A memory with no source text at all
- * (e.g. photos only) is a valid, fully-processed memory — not a failure.
+ * This is the half of the pipeline the user is waiting on: transcribe the audio,
+ * read any photos, and correct the sentence so what appears on screen is text
+ * they would actually write. Then it hands off to [UnderstandingWorker] and
+ * finishes — the ~22 extraction questions are minutes of work on-device, and
+ * making someone stare at a spinner through them would be the wrong trade.
+ *
+ * A memory may be voice, text, photos, or any mix, so source text is resolved
+ * from every modality present. A memory with no source text at all (photos only)
+ * is a valid, fully-processed memory — not a failure.
  */
 @HiltWorker
 class MemoryIntelligenceWorker @AssistedInject constructor(
@@ -32,14 +37,10 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val diaryEntryDao: DiaryEntryDao,
     private val intelligenceDao: IntelligenceDao,
-    private val understandingDao: UnderstandingDao,
     private val aiManager: AIManager,
-    private val tagRepository: TagRepository,
-    private val understandingService: MemoryUnderstandingService,
+    private val runner: StagedUnderstandingRunner,
     private val photoTextExtractor: com.dhaval.echo.domain.understanding.PhotoTextExtractor,
-    private val photoVisualDescriber: com.dhaval.echo.domain.understanding.PhotoVisualDescriber,
-    private val reminderScheduler: com.dhaval.echo.data.reminders.ReminderScheduler,
-    private val collectionSuggestionService: com.dhaval.echo.data.collections.CollectionSuggestionService
+    private val photoVisualDescriber: com.dhaval.echo.domain.understanding.PhotoVisualDescriber
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -63,26 +64,22 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
                 return Result.success()
             }
 
-            runAnalysis(entry, sourceText)
-
-            // Memory Understanding Engine (Stages 3–5): evidence extraction →
-            // entity graph resolution. Failures log loudly and degrade — a
-            // broken analyzer must not cost the user their summary/transcript.
+            // PREPARE: correct the sentence so the text on screen reads as the
+            // user would have written it. Cheap enough to keep on this path,
+            // and everything downstream reasons about the corrected version.
             runCatching {
-                understandingService.understand(normalizedContentFor(entry, sourceText))
-                // Arm notifications for any dated commitments this memory produced.
-                reminderScheduler.scheduleForMemory(entryId)
-                // Tags from the entities the graph just extracted (people, places,
-                // projects…) — specific names, not broad categories.
-                applyEntityTags(entryId, sourceText)
-                // Auto-populate Collections from strong recurring topics/projects.
-                collectionSuggestionService.refresh()
-            }.onFailure { Log.e(TAG, "Understanding stage failed for $entryId", it) }
+                runner.run(
+                    content = normalizedContentFor(entry, sourceText),
+                    stages = setOf(Stage.PREPARE)
+                )
+            }.onFailure { Log.w(TAG, "Text preparation failed for $entryId", it) }
 
-            Log.d(TAG, "Intelligence pipeline completed for $entryId")
+            intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.COMPLETED)
+            Log.d(TAG, "Memory $entryId is readable — handing off to understanding")
 
-            // Enqueue embedding generation
-            EmbeddingWorker.enqueue(applicationContext, entryId)
+            // The slow, thorough half. Runs on its own, resumably, while the
+            // user gets on with their day.
+            UnderstandingWorker.enqueue(applicationContext, entryId)
 
             Result.success()
         } catch (e: Exception) {
@@ -154,102 +151,6 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
         ).joinToString("\n\n").trim()
     }
 
-    private suspend fun runAnalysis(entry: DiaryEntry, sourceText: String) {
-        val entryId = entry.id
-        val userId = entry.userId
-
-        // 1. Summary
-        intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.SUMMARIZING)
-        val summary = aiManager.getSummaryService().summarize(sourceText).last()
-
-        // 2. Title — only when the user didn't write one. Never overwrite their words.
-        val title = if (isAutoGeneratedTitle(entry.title)) {
-            aiManager.getTitleGenerationService().generateTitle(sourceText).last()
-        } else {
-            entry.title
-        }
-        intelligenceDao.updateAnalysisResults(entryId, title, summary)
-
-        // 3. Tags now come from the entity graph (applyEntityTags), which is only
-        //    populated once understanding runs — so tagging happens after it, in
-        //    doWork. This replaces the old broad-category tags ("Business", "Work").
-
-        // 4. Classification
-        intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.CLASSIFYING)
-        val classification = aiManager.getMemoryClassificationService()
-            .classify(sourceText, summary).last()
-        intelligenceDao.insertClassification(
-            MemoryClassificationEntity(
-                entryId = entryId,
-                userId = userId,
-                categories = classification.categories,
-                keywords = classification.keywords,
-                entities = classification.entities,
-                confidence = classification.confidence
-            )
-        )
-
-        // 5. Memory linking now happens in EmbeddingWorker, from real e5 cosine
-        //    similarity — the entry's own embedding doesn't exist until then.
-        //    (The old classification-keyword linker scored every same-day pair
-        //    the same and marked everything "related"; it's gone.)
-        intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.LINKING)
-
-        // 6. Timeline insights
-        intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.ANALYZING_TIMELINE)
-        runCatching {
-            val insights = aiManager.getTimelineIntelligenceService().analyzeTimeline().last()
-            if (insights.isNotEmpty()) {
-                intelligenceDao.updateInsights(userId, insights.map {
-                    TimelineInsightEntity(
-                        id = it.id,
-                        userId = userId,
-                        title = it.title,
-                        description = it.description,
-                        type = it.type,
-                        confidence = it.confidence,
-                        relatedMemoryIds = it.relatedMemoryIds,
-                        createdAt = it.createdAt,
-                        priority = it.priority
-                    )
-                })
-            }
-        }.onFailure { Log.w(TAG, "Timeline analysis failed for $entryId", it) }
-
-        intelligenceDao.updateAnalysisStatus(entryId, IntelligenceStatus.COMPLETED)
-    }
-
-    /**
-     * Tags a memory with the specific entities the graph extracted from it —
-     * people, places, projects, topics, orgs, products — instead of the broad
-     * categories the old tag service emitted ("Business", "Work"). Only *stated*
-     * links (not Stage-6 inferences) become tags, so a memory is tagged with what
-     * it actually names. If understanding surfaced no entities, we fall back to
-     * the keyword tag service so the memory isn't left tag-less.
-     */
-    private suspend fun applyEntityTags(entryId: String, sourceText: String) {
-        val names = understandingDao.getLinkedEntitiesOnce(entryId)
-            .asSequence()
-            .filter { !it.inferred }
-            .filter { it.type in TAGGABLE_ENTITY_TYPES }
-            .map { it.name.trim() }
-            .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
-            .take(MAX_ENTITY_TAGS)
-            .toList()
-
-        if (names.isNotEmpty()) {
-            names.forEach { tagRepository.addTagToEntry(entryId, it) }
-            return
-        }
-
-        // No entities (e.g. a terse memory) — keep the keyword tagger as a floor.
-        runCatching {
-            aiManager.getTagSuggestionService().suggestTags(sourceText).last()
-                .forEach { tagRepository.addTagToEntry(entryId, it) }
-        }.onFailure { Log.w(TAG, "Fallback tag suggestion failed for $entryId", it) }
-    }
-
     /** Stage-2 canonical form: after this, source kind no longer matters. */
     private fun normalizedContentFor(entry: DiaryEntry, sourceText: String): NormalizedContent {
         val kinds = buildSet {
@@ -263,25 +164,14 @@ class MemoryIntelligenceWorker @AssistedInject constructor(
             userId = entry.userId,
             text = sourceText,
             sourceKinds = kinds.ifEmpty { setOf(SourceKind.TEXT) },
-            capturedAt = entry.createdAt
+            capturedAt = entry.createdAt,
+            imagePaths = entry.imagePaths.orEmpty()
         )
     }
-
-    /**
-     * True for titles the app generated itself, which the AI may improve on.
-     * A title the user typed is left alone.
-     */
-    private fun isAutoGeneratedTitle(title: String): Boolean =
-        title.isBlank() || title == "Untitled" || title == "Untitled Memory" ||
-            title == "Memory of the Day" || title.startsWith("Recording ")
 
     companion object {
         const val KEY_ENTRY_ID = "entryId"
         private const val TAG = "MemoryIntelWorker"
         private const val MAX_ATTEMPTS = 3
-        private const val MAX_ENTITY_TAGS = 8
-        /** Entity-forming kinds worth surfacing as tags (EvidenceKind names). */
-        private val TAGGABLE_ENTITY_TYPES =
-            setOf("PERSON", "PROJECT", "TOPIC", "PLACE", "ORG", "PRODUCT")
     }
 }

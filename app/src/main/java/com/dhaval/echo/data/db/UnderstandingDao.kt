@@ -138,20 +138,34 @@ interface UnderstandingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRelationships(edges: List<EntityRelationship>)
 
-    /** Drop every edge originating at an entity, so it can be rebuilt idempotently. */
-    @Query("DELETE FROM entity_relationships WHERE sourceEntityId = :entityId")
+    /**
+     * Drop an entity's co-occurrence edges so they can be rebuilt idempotently.
+     *
+     * Leaves `asserted` edges alone. Those were read out of a memory's own words
+     * by a model ("Prabir does Swimming") and are not derivable from counting —
+     * recomputing co-occurrence must not erase something the user actually said.
+     */
+    @Query("DELETE FROM entity_relationships WHERE sourceEntityId = :entityId AND asserted = 0")
     suspend fun deleteRelationshipsFrom(entityId: String)
 
     /**
-     * Replace all outgoing edges of one entity in a single transaction. Called by
-     * the resolver after a memory touches this entity: its neighbourhood is small,
-     * so a full delete+reinsert keeps weights exactly in sync with co-occurrence.
+     * Replace all outgoing co-occurrence edges of one entity in a single
+     * transaction. Called after a memory touches this entity: its neighbourhood
+     * is small, so a full delete+reinsert keeps weights exactly in sync.
      */
     @Transaction
     suspend fun rebuildRelationshipsFrom(entityId: String, edges: List<EntityRelationship>) {
         deleteRelationshipsFrom(entityId)
         if (edges.isNotEmpty()) insertRelationships(edges)
     }
+
+    /**
+     * Store a relationship a model stated. Replaces on the unique
+     * (source, target) index, so re-processing a memory updates the edge rather
+     * than failing or duplicating it.
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAssertedRelationship(edge: EntityRelationship)
 
     /** The entities connected to [entityId], strongest edge first — for related-to UI. */
     @Query(
@@ -232,6 +246,14 @@ interface UnderstandingDao {
     @Query("DELETE FROM memory_entity_links WHERE memoryId = :memoryId")
     suspend fun deleteLinksForMemory(memoryId: String)
 
+    /**
+     * Clear only the graph-expansion links. These belong to the whole-memory
+     * finalize pass rather than to any single question, so they are rebuilt
+     * wholesale each time rather than scoped to an extractor.
+     */
+    @Query("DELETE FROM memory_entity_links WHERE memoryId = :memoryId AND inferred = 1")
+    suspend fun deleteInferredLinksForMemory(memoryId: String)
+
     @Query(
         """SELECT l.entityId AS entityId, e.name AS name, e.type AS type,
                   l.relation AS relation, l.confidence AS confidence, l.inferred AS inferred
@@ -288,6 +310,14 @@ interface UnderstandingDao {
     )
     fun getOpenActionables(userId: String): Flow<List<ExtractedItem>>
 
+    /** One-shot [getOpenActionables] — for ENRICH, which runs inside the pipeline. */
+    @Query(
+        """SELECT * FROM extracted_items
+           WHERE userId = :userId AND kind IN ('TASK','REMINDER') AND status = 'OPEN'
+           ORDER BY dueAtMillis IS NULL, dueAtMillis ASC"""
+    )
+    suspend fun getOpenActionablesOnce(userId: String): List<ExtractedItem>
+
     /** Completed commitments, most-recently-created first — for the "Done" view. */
     @Query(
         """SELECT * FROM extracted_items
@@ -314,8 +344,96 @@ interface UnderstandingDao {
     )
     suspend fun getSchedulableReminders(): List<ExtractedItem>
 
+    /**
+     * This memory's interpretive facets — memory type, category, priority,
+     * intent. One row each; the detail screen renders them as its facet chips.
+     */
+    @Query(
+        """SELECT * FROM extracted_items
+           WHERE memoryId = :memoryId AND kind IN ('INTENT','MEMORY_TYPE','CATEGORY','PRIORITY')
+           ORDER BY kind ASC"""
+    )
+    fun getFacetsForMemory(memoryId: String): Flow<List<ExtractedItem>>
+
+    /**
+     * Every memory carrying a given facet value — "all my Family memories",
+     * "everything I marked High". This is what turns a facet chip from
+     * decoration into a retrieval handle.
+     */
+    @Query(
+        """SELECT d.* FROM diary_entries d
+           JOIN extracted_items i ON i.memoryId = d.id
+           WHERE i.userId = :userId AND i.kind = :kind AND i.value = :value
+             AND d.deleted = 0
+           ORDER BY d.createdAt DESC"""
+    )
+    fun memoriesWithFacet(userId: String, kind: String, value: String): Flow<List<DiaryEntry>>
+
+    // ── Extraction runs (pipeline progress) ──────────────────────────
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRun(run: ExtractionRun)
+
+    /** Live progress for the detail screen: "Understanding… 7/22". */
+    @Query("SELECT * FROM memory_extraction_runs WHERE memoryId = :memoryId")
+    fun getRunsForMemory(memoryId: String): Flow<List<ExtractionRun>>
+
+    @Query("SELECT * FROM memory_extraction_runs WHERE memoryId = :memoryId")
+    suspend fun getRunsForMemoryOnce(memoryId: String): List<ExtractionRun>
+
+    /**
+     * Which questions have already been answered for this memory. The runner
+     * reads this on start and skips them, so a process death costs one extractor
+     * rather than the whole memory.
+     *
+     * COMPLETED and SKIPPED both count as settled; FAILED and a stale RUNNING do
+     * not, so they are retried on the next pass.
+     */
+    @Query(
+        """SELECT extractorId FROM memory_extraction_runs
+           WHERE memoryId = :memoryId AND status IN ('COMPLETED','SKIPPED')"""
+    )
+    suspend fun getSettledExtractorIds(memoryId: String): List<String>
+
+    @Query("DELETE FROM memory_extraction_runs WHERE memoryId = :memoryId")
+    suspend fun deleteRunsForMemory(memoryId: String)
+
     // ── Idempotent re-processing ─────────────────────────────────────
 
+    @Query("DELETE FROM memory_entity_links WHERE memoryId = :memoryId AND extractorId = :extractorId")
+    suspend fun deleteLinksFromExtractor(memoryId: String, extractorId: String)
+
+    @Query("DELETE FROM extracted_items WHERE memoryId = :memoryId AND extractorId = :extractorId")
+    suspend fun deleteItemsFromExtractor(memoryId: String, extractorId: String)
+
+    /**
+     * Persist one extractor's answer, atomically, without touching any other
+     * extractor's rows.
+     *
+     * This is what makes the pipeline incremental: each of the ~22 questions
+     * lands the moment it is answered, so the detail screen fills in
+     * progressively, and re-running a single extractor replaces exactly its own
+     * conclusions. The run row is written in the same transaction, so progress
+     * and results can never disagree — a crash between them is impossible.
+     */
+    @Transaction
+    suspend fun replaceExtractorOutput(
+        run: ExtractionRun,
+        links: List<MemoryEntityLink>,
+        items: List<ExtractedItem>
+    ) {
+        deleteLinksFromExtractor(run.memoryId, run.extractorId)
+        deleteItemsFromExtractor(run.memoryId, run.extractorId)
+        if (links.isNotEmpty()) insertLinks(links)
+        if (items.isNotEmpty()) insertItems(items)
+        upsertRun(run)
+    }
+
+    /**
+     * Full reset for one memory — used by the backfill worker, which re-asks
+     * every question from scratch. Clears run rows too, so the runner does not
+     * skip the extractors whose output was just deleted.
+     */
     @Transaction
     suspend fun replaceMemoryUnderstanding(
         memoryId: String,
@@ -324,6 +442,7 @@ interface UnderstandingDao {
     ) {
         deleteLinksForMemory(memoryId)
         deleteItemsForMemory(memoryId)
+        deleteRunsForMemory(memoryId)
         if (links.isNotEmpty()) insertLinks(links)
         if (items.isNotEmpty()) insertItems(items)
     }

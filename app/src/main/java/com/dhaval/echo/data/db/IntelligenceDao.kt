@@ -38,6 +38,26 @@ interface IntelligenceDao {
     @Query("UPDATE diary_entries SET visualSummary = :visualSummary WHERE id = :entryId")
     suspend fun updateVisualSummary(entryId: String, visualSummary: String?)
 
+    /**
+     * The sentence-corrected text, written by the cleanup extractor. Never
+     * touches `transcript` — that stays verbatim so playback and segment timings
+     * keep lining up with what the user actually said.
+     */
+    @Query("UPDATE diary_entries SET cleanedText = :cleanedText WHERE id = :entryId")
+    suspend fun updateCleanedText(entryId: String, cleanedText: String?)
+
+    // Granular writes for the staged pipeline: each extractor settles one field
+    // as it answers, rather than several fields being written together at the end.
+
+    @Query("UPDATE diary_entries SET summary = :summary WHERE id = :entryId")
+    suspend fun updateSummary(entryId: String, summary: String?)
+
+    @Query("UPDATE diary_entries SET title = :title WHERE id = :entryId")
+    suspend fun updateTitle(entryId: String, title: String)
+
+    @Query("UPDATE diary_entries SET language = :language WHERE id = :entryId")
+    suspend fun updateLanguage(entryId: String, language: String?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertClassification(classification: MemoryClassificationEntity)
 

@@ -46,9 +46,10 @@ interface TitleGenerationService {
 /**
  * Service for suggesting tags for recordings.
  */
-interface TagSuggestionService {
-    fun suggestTags(text: String): Flow<List<String>>
-}
+// TagSuggestionService is gone. A memory's tags are the names of the entities
+// its extractors found, so "suggest some tags for this text" was a second,
+// weaker answer to a question the pipeline already answers properly — with
+// evidence, confidence, and an identity that recurs across memories.
 
 /**
  * Service for generating vector embeddings.
