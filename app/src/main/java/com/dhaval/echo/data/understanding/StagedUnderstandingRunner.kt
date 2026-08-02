@@ -13,7 +13,9 @@ import com.dhaval.echo.domain.understanding.ExtractorOutput
 import com.dhaval.echo.domain.understanding.ExtractorRegistry
 import com.dhaval.echo.domain.understanding.ExtractorRunRecord
 import com.dhaval.echo.domain.understanding.ExtractorSpec
+import com.dhaval.echo.domain.understanding.EvidenceKind
 import com.dhaval.echo.domain.understanding.NormalizedContent
+import com.dhaval.echo.domain.understanding.ProcessingRouter
 import com.dhaval.echo.domain.understanding.Stage
 import com.dhaval.echo.domain.understanding.TextTarget
 import kotlinx.coroutines.currentCoroutineContext
@@ -102,6 +104,15 @@ class StagedUnderstandingRunner @Inject constructor(
                 currentCoroutineContext().ensureActive()
 
                 val ctx = ExtractionContext(working, answers.toList(), enrichment)
+
+                // Router 1: is there any point asking this at all? Skipping a
+                // provably-empty question is most of the battery saving on
+                // device, where every question is a real inference.
+                if (!ProcessingRouter.shouldRun(spec, working) || !dependenciesMet(spec, ctx)) {
+                    recordSkip(spec, ctx)
+                    continue
+                }
+
                 val outcome = ask(spec, ctx)
 
                 when (val output = outcome.output) {
@@ -121,6 +132,51 @@ class StagedUnderstandingRunner @Inject constructor(
             runCatching { resolver.finalizeMemory(content) }
                 .onFailure { Log.e(TAG, "Finalize failed for ${content.memoryId}", it) }
         }
+    }
+
+    /**
+     * The second half of routing: questions that are pointless not because of
+     * the text but because of what earlier stages *didn't* find.
+     *
+     * `ProcessingRouter` can't decide these — it runs before there are any
+     * answers — so they live here, where the evidence exists. Refining an action
+     * needs an action; relating entities needs at least two of them.
+     */
+    private fun dependenciesMet(spec: ExtractorSpec, ctx: ExtractionContext): Boolean =
+        when (spec.id) {
+            "action_refinement" -> ctx.of(EvidenceKind.TASK).isNotEmpty()
+            "intent" -> ctx.of(EvidenceKind.TASK).isNotEmpty() ||
+                ctx.of(EvidenceKind.OBJECT).isNotEmpty() ||
+                ctx.of(EvidenceKind.ACTIVITY).isNotEmpty()
+            "relationships" -> ctx.priorEvidence.count { it.kind in ENTITY_KINDS } >= 2
+            else -> true
+        }
+
+    /**
+     * Record a question that was never asked.
+     *
+     * Written to the run table like any other outcome, so the progress count
+     * reaches 22 rather than stalling, and so "never asked" stays visibly
+     * distinct from "asked and found nothing" when a thin memory needs
+     * explaining.
+     */
+    private suspend fun recordSkip(spec: ExtractorSpec, ctx: ExtractionContext) {
+        val now = LocalDateTime.now()
+        Log.v(TAG, "Routed past '${spec.id}' for ${ctx.content.memoryId}")
+        runCatching {
+            resolver.persistExtractorOutput(
+                ctx.content,
+                ExtractorRunRecord(
+                    extractorId = spec.id,
+                    outcome = ExtractorOutcome.SKIPPED,
+                    engineId = "routed",
+                    startedAt = now,
+                    completedAt = now,
+                    latencyMs = 0
+                ),
+                ExtractorOutput.Empty
+            )
+        }.onFailure { Log.e(TAG, "Could not record skip for '${spec.id}'", it) }
     }
 
     private data class Outcome(val output: ExtractorOutput)
@@ -253,6 +309,13 @@ class StagedUnderstandingRunner @Inject constructor(
 
     private companion object {
         const val TAG = "UnderstandingRunner"
+
+        /** Evidence kinds that become graph nodes — what a relation can join. */
+        val ENTITY_KINDS = setOf(
+            EvidenceKind.PERSON, EvidenceKind.PLACE, EvidenceKind.ORG,
+            EvidenceKind.PROJECT, EvidenceKind.TOPIC, EvidenceKind.PRODUCT,
+            EvidenceKind.ACTIVITY, EvidenceKind.OBJECT
+        )
 
         val ENTITY_TYPE_TO_KIND = mapOf(
             com.dhaval.echo.data.db.EntityType.PERSON to com.dhaval.echo.domain.understanding.EvidenceKind.PERSON,
