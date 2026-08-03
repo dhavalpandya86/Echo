@@ -23,52 +23,38 @@ abstract class AiFoundationModule {
 object AiServiceModule {
 
     @Provides
-    @Singleton
     fun provideLanguageDetectionService(aiManager: AIManager): LanguageDetectionService =
         aiManager.getLanguageDetectionService()
 
     @Provides
-    @Singleton
     fun provideTranscriptionService(aiManager: AIManager): TranscriptionService =
         aiManager.getTranscriptionService()
 
     @Provides
-    @Singleton
     fun provideSummaryService(aiManager: AIManager): SummaryService =
         aiManager.getSummaryService()
 
     @Provides
-    @Singleton
     fun provideTitleGenerationService(aiManager: AIManager): TitleGenerationService =
         aiManager.getTitleGenerationService()
 
     @Provides
-    @Singleton
-    fun provideTagSuggestionService(aiManager: AIManager): TagSuggestionService =
-        aiManager.getTagSuggestionService()
-
-    @Provides
-    @Singleton
     fun provideEmbeddingService(aiManager: AIManager): EmbeddingService =
         aiManager.getEmbeddingService()
 
     @Provides
-    @Singleton
     fun provideMemoryRelationshipService(aiManager: AIManager): MemoryRelationshipService =
         aiManager.getMemoryRelationshipService()
 
     @Provides
-    @Singleton
     fun provideSemanticSearchService(aiManager: AIManager): SemanticSearchService =
         aiManager.getSemanticSearchService()
 
     @Provides
-    @Singleton
     fun provideTimelineIntelligenceService(aiManager: AIManager): TimelineIntelligenceService =
         aiManager.getTimelineIntelligenceService()
 
-    @Provides
-    @Singleton
-    fun provideConversationService(aiManager: AIManager): ConversationService =
-        aiManager.getConversationService()
+    // ConversationService is bound directly in AiConversationModule — Reflect
+    // goes through the Reflection Engine for every provider now, so there is no
+    // per-provider choice left to make here.
 }

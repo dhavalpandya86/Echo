@@ -1,8 +1,16 @@
 package com.dhaval.echo.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -30,11 +38,21 @@ import com.dhaval.echo.ui.navigation.*
  */
 @Composable
 fun EchoApp(
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: AuthViewModel = hiltViewModel(),
+    appearanceViewModel: AppearanceViewModel = hiltViewModel()
 ) {
     val authState by viewModel.authState.collectAsState()
+    val appearance by appearanceViewModel.mode.collectAsState()
 
-    EchoTheme {
+    // Resolved here, at the root, so the whole app is drawn once in the right
+    // theme rather than repainting after a preference read further down.
+    val darkTheme = when (appearance) {
+        com.dhaval.echo.data.preferences.AppearanceMode.SYSTEM -> isSystemInDarkTheme()
+        com.dhaval.echo.data.preferences.AppearanceMode.LIGHT -> false
+        com.dhaval.echo.data.preferences.AppearanceMode.DARK -> true
+    }
+
+    EchoTheme(darkTheme = darkTheme) {
         val navController = rememberNavController()
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = navBackStackEntry?.destination
@@ -66,6 +84,11 @@ fun EchoApp(
                 modifier = Modifier.padding(innerPadding)
             )
         }
+
+        // A restore ends by restarting the process, so the account of what it
+        // did has to be shown on the way back in. Hosted at the root rather
+        // than on a screen, because there is no telling where the user lands.
+        com.dhaval.echo.ui.settings.backup.RestoreReportDialog()
     }
 }
 
@@ -99,18 +122,29 @@ private fun EchoBottomBar(
                         modifier = Modifier.size(26.dp)
                     )
                 },
-                label = { 
-                    Text(
-                        text = destination.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                    ) 
+                label = {
+                    // Active state: primary tint + a small 4px dot below the label (per design).
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        androidx.compose.foundation.layout.Box(
+                            Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        )
+                    }
                 },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                    unselectedTextColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                    unselectedIconColor = MaterialTheme.colorScheme.secondary,
+                    unselectedTextColor = MaterialTheme.colorScheme.secondary,
                     indicatorColor = Color.Transparent
                 )
             )

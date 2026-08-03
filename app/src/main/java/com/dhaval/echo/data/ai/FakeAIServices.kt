@@ -43,12 +43,9 @@ class FakeTitleGenerationService : TitleGenerationService {
     }
 }
 
-class FakeTagSuggestionService : TagSuggestionService {
-    override fun suggestTags(text: String): Flow<List<String>> = flow {
-        delay(700)
-        emit(listOf("Personal", "Reflection", "Voice"))
-    }
-}
+// FakeTagSuggestionService is gone with TagSuggestionService itself. It is the
+// origin of the "Personal / Reflection / Voice" tags the backfill worker still
+// strips off older memories.
 
 class FakeEmbeddingService : EmbeddingService {
     override fun generateEmbedding(text: String): Flow<List<Float>> = flow {

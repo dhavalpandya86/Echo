@@ -28,4 +28,8 @@ class RealUserRepository @Inject constructor(
             userDao.insertProfile(UserProfile(id = userId, displayName = name))
         }
     }
+
+    override suspend fun syncProfile(userId: String) {
+        // No-op for local repo
+    }
 }

@@ -2,6 +2,7 @@ package com.dhaval.echo.di
 
 import com.dhaval.echo.data.db.EchoDatabase
 import com.dhaval.echo.data.db.UserDao
+import com.dhaval.echo.data.user.FirestoreUserRepository
 import com.dhaval.echo.data.user.RealUserRepository
 import com.dhaval.echo.domain.user.UserRepository
 import dagger.Binds
@@ -17,7 +18,7 @@ abstract class UserModule {
 
     @Binds
     @Singleton
-    abstract fun bindUserRepository(impl: RealUserRepository): UserRepository
+    abstract fun bindUserRepository(impl: FirestoreUserRepository): UserRepository
 
     companion object {
         @Provides

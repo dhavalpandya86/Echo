@@ -69,3 +69,14 @@ interface AIProvider {
     val supportsConversation: Boolean
     val status: StateFlow<AIProviderStatus>
 }
+
+/**
+ * Metadata for a Speech-to-Text provider.
+ */
+interface STTProvider {
+    val id: String
+    val displayName: String
+    val isEnabled: Boolean
+    val isOffline: Boolean
+    val statusLabel: String
+}

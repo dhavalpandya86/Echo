@@ -2,12 +2,13 @@ package com.dhaval.echo.ui.auth
 
 import android.content.Context
 import android.util.Log
+import com.dhaval.echo.R
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,28 +16,32 @@ import kotlinx.coroutines.withContext
 class GoogleAuthHelper(private val context: Context) {
     private val credentialManager = CredentialManager.create(context)
 
-    // Actual Web Client ID from Firebase/Google Cloud Console
-    // Note: Ensure this matches the Web Client ID in your Google Cloud Console for the same project.
-    private val WEB_CLIENT_ID = "994516006717-m1482uhdkfluvqfmrkn8r4etem0u2jvf.apps.googleusercontent.com"
+    // The web client ID (OAuth client_type 3) for whatever Firebase project this
+    // build targets. Read from the google-services-generated resource so it always
+    // matches google-services.json — hardcoding it broke Google Sign-In the moment
+    // the app switched Firebase projects.
+    private val webClientId: String
+        get() = context.getString(R.string.default_web_client_id)
 
-    suspend fun signIn(): Result<String> = withContext(Dispatchers.IO) {
-        Log.d("GoogleAuthHelper", "signIn started")
+    suspend fun signIn(activityContext: Context): Result<String> = withContext(Dispatchers.IO) {
+        Log.d("GoogleAuthHelper", "signIn started with context: ${activityContext::class.java.simpleName}")
         try {
-            val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(WEB_CLIENT_ID)
-                .setAutoSelectEnabled(false)
-                .build()
-            Log.d("GoogleAuthHelper", "GetGoogleIdOption created")
+            // GetSignInWithGoogleOption is the explicit "Sign in with Google" button
+            // flow: it always presents the account picker with every Google account
+            // on the device. GetGoogleIdOption (the one-tap/bottom-sheet flow) throws
+            // NoCredentialException here when nothing is pre-authorized — which is why
+            // first-time sign-in showed "No Google accounts found".
+            val signInWithGoogleOption: GetSignInWithGoogleOption =
+                GetSignInWithGoogleOption.Builder(webClientId).build()
 
             val request: GetCredentialRequest = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
+                .addCredentialOption(signInWithGoogleOption)
                 .build()
-            Log.d("GoogleAuthHelper", "GetCredentialRequest created, calling getCredential...")
 
+            Log.d("GoogleAuthHelper", "Calling getCredential...")
             val result = credentialManager.getCredential(
                 request = request,
-                context = context
+                context = activityContext
             )
             Log.d("GoogleAuthHelper", "getCredential returned successfully")
             
@@ -48,10 +53,15 @@ class GoogleAuthHelper(private val context: Context) {
             }
         } catch (e: NoCredentialException) {
             Log.e("GoogleAuthHelper", "No accounts found", e)
-            Result.failure(Exception("No Google accounts found on this device"))
+            Result.failure(Exception("No Google accounts found on this device. Please add a Google account in settings."))
         } catch (e: GetCredentialException) {
-            Log.e("GoogleAuthHelper", "Credential Manager error: ${e.type}", e)
-            Result.failure(Exception("Google Sign-In error: ${e.message}"))
+            Log.e("GoogleAuthHelper", "Credential Manager error: [${e.type}] ${e.message}", e)
+            val friendlyMessage = when {
+                e.type.contains("androidx.credentials.TYPE_GET_CREDENTIAL_CANCELED_EXCEPTION") -> "Sign-in cancelled"
+                e.type.contains("androidx.credentials.TYPE_GET_CREDENTIAL_INTERRUPTED_EXCEPTION") -> "Sign-in interrupted"
+                else -> "GSI error [${e.type.substringAfterLast('.')}]: ${e.message ?: "Unknown error"}"
+            }
+            Result.failure(Exception(friendlyMessage))
         } catch (e: Exception) {
             Log.e("GoogleAuthHelper", "Unexpected error during signIn", e)
             Result.failure(e)

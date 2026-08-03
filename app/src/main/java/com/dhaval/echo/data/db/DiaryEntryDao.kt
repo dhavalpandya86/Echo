@@ -19,6 +19,14 @@ interface DiaryEntryDao {
     @Query("SELECT * FROM diary_entries WHERE id = :id LIMIT 1")
     suspend fun getEntryById(id: String): DiaryEntry?
 
+    /**
+     * Every non-deleted memory that has an e5 embedding — the corpus the linker
+     * cosine-compares a new memory against to find genuinely related memories
+     * (not just same-day ones).
+     */
+    @Query("SELECT * FROM diary_entries WHERE userId = :userId AND deleted = 0 AND embedding IS NOT NULL")
+    suspend fun getEntriesWithEmbeddings(userId: String): List<DiaryEntry>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: DiaryEntry)
 

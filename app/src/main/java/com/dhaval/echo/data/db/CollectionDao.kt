@@ -14,6 +14,10 @@ interface CollectionDao {
     @Query("SELECT * FROM collections WHERE id = :id AND userId = :userId LIMIT 1")
     suspend fun getCollectionById(id: String, userId: String): EchoCollection?
 
+    /** The auto-collection built around a given entity, if one exists. */
+    @Query("SELECT * FROM collections WHERE userId = :userId AND sourceEntityId = :entityId LIMIT 1")
+    suspend fun getCollectionForEntity(userId: String, entityId: String): EchoCollection?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCollection(collection: EchoCollection)
 

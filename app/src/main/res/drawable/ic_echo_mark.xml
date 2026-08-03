@@ -1,0 +1,25 @@
+<!-- Echo brand mark v2 (refined): seed r6 + inner ring r20 + outer ring r34 with
+     a 12% opening at the golden angle (137.5°), opening to the lower right.
+     One stroke system (7 units). Single color; tint at usage site. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96"
+    android:tint="#1A1A1A">
+    <!-- The seed (center dot, r6) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,48 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z" />
+    <!-- Inner ring (r20, stroke 7) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:pathData="M28,48 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0" />
+    <!-- Outer ring with the golden opening (r34, stroke 7, round caps) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M60.18,79.74 A34,34 0 1 1 78.61,62.80" />
+</vector>

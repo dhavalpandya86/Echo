@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Echo brand palette -->
+    <color name="echo_paper">#FAF8F5</color>
+    <color name="echo_surface">#F3EFEA</color>
+    <color name="echo_mist">#ECE8F3</color>
+    <color name="echo_indigo">#5A5DF0</color>
+    <color name="echo_indigo_deep">#4045D8</color>
+    <color name="echo_lavender">#B6AEFF</color>
+    <color name="echo_ink">#1A1A1A</color>
+    <color name="echo_slate">#666666</color>
+    <color name="echo_night">#16151A</color>
+    <color name="echo_night_surface">#211F26</color>
+    <color name="ic_launcher_background">#5A5DF0</color>
+
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

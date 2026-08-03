@@ -18,8 +18,8 @@ android {
         applicationId = "com.dhaval.echo"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 8
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,14 +41,26 @@ android {
             storeFile = keystoreProperties["storeFile"]?.let { file(it) }
             storePassword = keystoreProperties["storePassword"] as String?
         }
+        getByName("debug") {
+            storeFile = file("echo-debug.keystore")
+            storePassword = "android"
+            keyAlias = "echo_debug"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -58,6 +70,30 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests {
+            // android.util.Log throws "not mocked" on the JVM by default, so any
+            // class that logs — which is most of them — can't be unit tested at
+            // all. Returning defaults makes logging a no-op off-device instead
+            // of a reason to avoid testing the code that does it.
+            isReturnDefaultValues = true
+        }
+    }
+
+    androidResources {
+        // The ONNX model is already int8-quantized and does not compress
+        // meaningfully; letting AAPT try costs build time and gains ~nothing.
+        // Declared here rather than per-pack: this drives the bundle config, which
+        // covers the asset packs' contents too.
+        noCompress += listOf("onnx")
+    }
+
+    // ~300 MB of models live in install-time asset packs instead of the base
+    // module, which would otherwise sit at Play's 500 MB base-module ceiling.
+    // Install-time packs are readable through the ordinary AssetManager, so the
+    // engines keep opening "whisper/..." and "embeddings/..." unchanged.
+    assetPacks += listOf(":whisper_models", ":embedding_models")
 }
 
 dependencies {
@@ -82,20 +118,40 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.hilt.work)
 
-    // Authentication
+    // Authentication & Database
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
     implementation(libs.play.services.auth)
-    implementation(libs.facebook.login)
+    implementation(libs.kotlinx.coroutines.play.services)
+    // On-device OCR (MU-3): Latin + Devanagari scripts, bundled models.
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.devanagari)
+    implementation(libs.mlkit.image.labeling)
+    implementation(libs.mlkit.image.labeling.custom)
+    implementation(libs.mlkit.face.detection)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.okhttp)
+    implementation(libs.androidx.datastore.preferences)
+    // Backup destinations are user-chosen SAF folders; DocumentFile is what makes
+    // listing/creating/deleting inside a tree URI tractable.
+    implementation(libs.androidx.documentfile)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.ui.text.google.fonts)
+    implementation(libs.onnxruntime.android)
+    // Provides the SentencepieceTokenizer custom op used by tokenizer.onnx.
+    implementation(libs.onnxruntime.extensions.android)
 
     ksp(libs.hilt.work.compiler)
     ksp(libs.room.compiler)
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
+    // Evaluation only — deliberately androidTest-scoped so the Gemma prototype
+    // adds nothing to the shipped app until we decide it earns its size.
+    androidTestImplementation(libs.litertlm.android)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

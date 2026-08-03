@@ -25,6 +25,10 @@ abstract class BaseAIProvider(
 ) : AIProvider {
     protected val _status = MutableStateFlow(initialStatus)
     override val status: StateFlow<AIProviderStatus> = _status.asStateFlow()
+
+    fun updateStatus(newStatus: AIProviderStatus) {
+        _status.value = newStatus
+    }
 }
 
 class GeminiProvider : BaseAIProvider(
@@ -39,7 +43,7 @@ class GeminiProvider : BaseAIProvider(
 
 class OpenAIProvider : BaseAIProvider(
     id = "openai",
-    displayName = "OpenAI (GPT-4o)",
+    displayName = "OpenAI",
     supportsStreaming = true,
     supportsVision = true,
     supportsAudio = true,
@@ -51,7 +55,12 @@ class ClaudeProvider : BaseAIProvider(
     id = "claude",
     displayName = "Anthropic Claude",
     supportsStreaming = true,
-    supportsVision = true
+    supportsVision = true,
+    supportsConversation = true,
+    supportsRelationships = true,
+    supportsSemanticSearch = true,
+    supportedLanguages = listOf("en", "es", "fr", "de", "pt", "it", "ja", "ko", "zh"),
+    initialStatus = AIProviderStatus.NeedsApiKey
 )
 
 class OllamaProvider : BaseAIProvider(

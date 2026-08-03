@@ -9,8 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,8 +26,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.dhaval.echo.domain.auth.AuthState
 import com.dhaval.echo.ui.auth.*
+import androidx.navigation.toRoute
 import com.dhaval.echo.ui.screens.*
 import com.dhaval.echo.ui.settings.ai.AiSettingsScreen
+import com.dhaval.echo.ui.settings.backup.BackupHistoryScreen
+import com.dhaval.echo.ui.settings.backup.BackupScreen
+import com.dhaval.echo.ui.settings.backup.RestoreFlowScreen
 
 /**
  * Central Navigation Graph for Echo.
@@ -37,19 +43,24 @@ fun EchoNavGraph(
     authState: AuthState,
     modifier: Modifier = Modifier
 ) {
-    val startDestination: Any = when (authState) {
-        is AuthState.Authenticated -> HomeRoute
-        is AuthState.Loading -> WelcomeRoute
-        else -> WelcomeRoute
-    }
+    // Signed-in users land on Today; everyone else starts at Welcome.
+    val startDestination: Any =
+        if (authState is AuthState.Authenticated) HomeRoute else WelcomeRoute
 
-    LaunchedEffect(authState) {
-        Log.d("EchoNavGraph", "AuthState changed: $authState")
-        if (authState is AuthState.Authenticated) {
-            Log.d("EchoNavGraph", "Navigating to Home")
-            navController.navigate(HomeRoute) {
-                popUpTo(WelcomeRoute) { inclusive = true }
+    // React to sign-in / sign-out after the first frame (the start destination
+    // already covers cold start). Clears the back stack so you can't navigate back
+    // across the auth boundary.
+    var initialized by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(authState) {
+        if (!initialized) { initialized = true; return@LaunchedEffect }
+        when (authState) {
+            is AuthState.Authenticated -> navController.navigate(HomeRoute) {
+                popUpTo(0) { inclusive = true }; launchSingleTop = true
             }
+            AuthState.Unauthenticated -> navController.navigate(WelcomeRoute) {
+                popUpTo(0) { inclusive = true }; launchSingleTop = true
+            }
+            else -> Unit
         }
     }
 
@@ -66,10 +77,7 @@ fun EchoNavGraph(
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             
-            // Get the Singleton helpers from Hilt
             val googleAuthHelper = remember { GoogleAuthHelper(context) }
-            val activity = context as? MainActivity
-            val facebookAuthHelper = activity?.facebookAuthHelper
 
             val error by authViewModel.error.collectAsState()
 
@@ -80,7 +88,7 @@ fun EchoNavGraph(
                 onGoogleSignIn = {
                     scope.launch {
                         Log.d("EchoNavGraph", "Google Sign-In clicked")
-                        googleAuthHelper.signIn()
+                        googleAuthHelper.signIn(context)
                             .onSuccess { token ->
                                 Log.d("EchoNavGraph", "ID Token received successfully")
                                 authViewModel.loginWithGoogle(token)
@@ -91,16 +99,7 @@ fun EchoNavGraph(
                             }
                     }
                 },
-                onFacebookSignIn = {
-                    scope.launch {
-                        if (activity != null && facebookAuthHelper != null) {
-                            val token = facebookAuthHelper.signIn(activity)
-                            token?.let {
-                                authViewModel.loginWithFacebook(it)
-                            }
-                        }
-                    }
-                },
+                onRestoreBackup = { navController.navigate(RestoreRoute()) },
                 error = error
             )
         }
@@ -165,11 +164,44 @@ fun EchoNavGraph(
         composable<HomeRoute> {
             HomeScreen(
                 onNavigateToRecord = { navController.navigate(RecordRoute) },
+                onNavigateToTextEntry = { navController.navigate(TextEntryRoute()) },
                 onNavigateToSearch = { navController.navigate(SearchRoute) },
                 onNavigateToCollections = { navController.navigate(CollectionsRoute) },
+                onNavigateToSettings = { navController.navigate(SettingsRoute) },
+                onNavigateToTasks = { navController.navigate(TasksRoute) },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
                 }
+            )
+        }
+
+        composable<TasksRoute> {
+            TasksScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenMemory = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) }
+            )
+        }
+
+        composable<EntitiesRoute> {
+            EntitiesScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) }
+            )
+        }
+
+        composable<WorldDetailsRoute> {
+            WorldDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) },
+                onEntryClick = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) }
+            )
+        }
+
+        composable<EntityDetailsRoute> {
+            EntityDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntryClick = { entryId -> navController.navigate(EntryDetailsRoute(entryId)) },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) }
             )
         }
 
@@ -183,6 +215,10 @@ fun EchoNavGraph(
             TimelineScreen(
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
+                },
+                onProfileClick = { navController.navigate(SettingsRoute) },
+                onAddOnDate = { epochDay ->
+                    navController.navigate(TextEntryRoute(dateEpochDay = epochDay))
                 }
             )
         }
@@ -192,7 +228,9 @@ fun EchoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onNavigateToEntity = { id -> navController.navigate(EntityDetailsRoute(id)) },
+                onNavigateToWorld = { id -> navController.navigate(WorldDetailsRoute(id)) }
             )
         }
 
@@ -200,13 +238,17 @@ fun EchoNavGraph(
             SearchScreen(
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onEntityClick = { id -> navController.navigate(EntityDetailsRoute(id)) },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
 
         composable<SettingsRoute> {
             SettingsScreen(
-                onNavigateToAiSettings = { navController.navigate(AiSettingsRoute) }
+                onNavigateToAiSettings = { navController.navigate(AiSettingsRoute) },
+                onNavigateToBackup = { navController.navigate(BackupRoute) },
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -216,11 +258,36 @@ fun EchoNavGraph(
             )
         }
 
+        composable<BackupRoute> {
+            BackupScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenHistory = { navController.navigate(BackupHistoryRoute) },
+                onRestoreFromFile = { navController.navigate(RestoreRoute()) }
+            )
+        }
+
+        composable<BackupHistoryRoute> {
+            BackupHistoryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onRestore = { uri -> navController.navigate(RestoreRoute(uri)) }
+            )
+        }
+
+        composable<RestoreRoute> { entry ->
+            RestoreFlowScreen(
+                onNavigateBack = { navController.popBackStack() },
+                initialUri = entry.toRoute<RestoreRoute>().archiveUri
+            )
+        }
+
         composable<CollectionsRoute> {
             CollectionsScreen(
                 onCollectionClick = { id ->
                     navController.navigate(CollectionDetailsRoute(id))
-                }
+                },
+                onNavigateToEntities = { navController.navigate(EntitiesRoute) },
+                onEntityClick = { id -> navController.navigate(WorldDetailsRoute(id)) },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
         }
 
@@ -228,8 +295,14 @@ fun EchoNavGraph(
             ConversationScreen(
                 onNavigateToEntry = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
-                }
+                },
+                onOpenReview = { navController.navigate(ReviewRoute) },
+                onProfileClick = { navController.navigate(SettingsRoute) }
             )
+        }
+
+        composable<ReviewRoute> {
+            ReviewScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable<CollectionDetailsRoute> {
@@ -237,6 +310,17 @@ fun EchoNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onEntryClick = { entryId ->
                     navController.navigate(EntryDetailsRoute(entryId))
+                }
+            )
+        }
+
+        composable<TextEntryRoute> {
+            TextEntryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onEntrySaved = { entryId ->
+                    navController.navigate(EntryDetailsRoute(entryId)) {
+                        popUpTo<TextEntryRoute> { inclusive = true }
+                    }
                 }
             )
         }

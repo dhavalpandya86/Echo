@@ -46,9 +46,10 @@ interface TitleGenerationService {
 /**
  * Service for suggesting tags for recordings.
  */
-interface TagSuggestionService {
-    fun suggestTags(text: String): Flow<List<String>>
-}
+// TagSuggestionService is gone. A memory's tags are the names of the entities
+// its extractors found, so "suggest some tags for this text" was a second,
+// weaker answer to a question the pipeline already answers properly — with
+// evidence, confidence, and an identity that recurs across memories.
 
 /**
  * Service for generating vector embeddings.
@@ -129,4 +130,18 @@ interface ConversationService {
     ): Flow<Message>
 
     fun getSuggestedQuestions(): Flow<List<String>>
+}
+
+/**
+ * The shared LLM engine behind the narrative screens (Remember answer, Reflect
+ * analysis, Story narration). Implemented in the data layer over whichever cloud
+ * provider has a key; null out of [AIManager] when there is none.
+ */
+interface NarrativeService {
+    /**
+     * Produce a paragraph in Echo's voice for [instruction], grounded in
+     * [memoriesBlock] (already-formatted memory text). Returns null on failure so
+     * the caller can fall back to on-device output.
+     */
+    suspend fun narrate(instruction: String, memoriesBlock: String, maxTokens: Int = 600): String?
 }

@@ -7,18 +7,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.dhaval.echo.data.db.EntryType
 import com.dhaval.echo.domain.ai.IntelligenceStatus
 import com.dhaval.echo.ui.components.*
 import com.dhaval.echo.ui.theme.EchoTheme
@@ -29,6 +35,8 @@ import java.time.format.DateTimeFormatter
 fun EntryDetailsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEntry: (String) -> Unit,
+    onNavigateToEntity: (String) -> Unit = {},
+    onNavigateToWorld: (String) -> Unit = {},
     viewModel: EntryDetailsViewModel = hiltViewModel(),
     playbackViewModel: PlaybackViewModel = hiltViewModel(),
     collectionsViewModel: CollectionsViewModel = hiltViewModel()
@@ -36,6 +44,7 @@ fun EntryDetailsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val playbackState by playbackViewModel.playbackState.collectAsState()
     val collectionsState by collectionsViewModel.uiState.collectAsState()
+    val worlds by viewModel.worlds.collectAsState()
     
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCollectionPicker by remember { mutableStateOf(false) }
@@ -92,17 +101,58 @@ fun EntryDetailsScreen(
                         onRenameClick = { showRenameDialog = true }
                     )
 
+                    // Text content for TEXT/MIXED entries
+                    if (!it.textContent.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        TextContentSection(it.textContent)
+                    }
+
+                    // Image gallery for entries with photos
+                    if (!it.imagePaths.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        ImageGallerySection(
+                            imagePaths = it.imagePaths,
+                            captions = it.photoCaptions,
+                            onSaveCaption = viewModel::setPhotoCaption
+                        )
+                    }
+
+                    // What Echo saw in the photos (on-device labels + place).
+                    it.visualSummary?.takeIf { s -> s.isNotBlank() }?.let { seen ->
+                        Spacer(modifier = Modifier.height(24.dp))
+                        EchoSeesSection(seen)
+                    }
+
                     if (!it.summary.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(24.dp))
                         SummarySection(it.summary)
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    // What the Memory Understanding Engine concluded (MU-0).
+                    // Fills in progressively — each of the ~22 extractors writes
+                    // its answer as it lands, so sections appear one by one
+                    // rather than the whole board arriving at once.
+                    if (uiState.linkedEntities.isNotEmpty() || uiState.extractedItems.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        UnderstandingSection(
+                            entities = uiState.linkedEntities,
+                            items = uiState.extractedItems
+                        )
+                    }
 
-                    PlaybackCard(
-                        state = playbackState,
-                        viewModel = playbackViewModel
-                    )
+                    if (uiState.understandingProgress.inProgress) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        UnderstandingProgressRow(uiState.understandingProgress)
+                    }
+
+                    // Only show playback for VOICE / MIXED entries with audio
+                    if (it.entryType == EntryType.VOICE || (it.entryType == EntryType.MIXED && it.audioPath.isNotBlank())) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        PlaybackCard(
+                            state = playbackState,
+                            viewModel = playbackViewModel
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(32.dp))
 
@@ -115,16 +165,33 @@ fun EntryDetailsScreen(
                     
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    if (worlds.isNotEmpty()) {
+                        WorldsSection(worlds = worlds, onWorldClick = { onNavigateToWorld(it.seedEntityId) })
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
                     CollectionsSection(
                         collections = uiState.collections,
                         onAddClick = { showCollectionPicker = true },
                         onRemove = viewModel::removeFromCollection
                     )
 
-                    if (uiState.relatedEntries.isNotEmpty()) {
+                    // "Project context" now names the memory's real project/topic
+                    // entity (not its own title). Shown only when one exists.
+                    val projectEntity = uiState.linkedEntities.firstOrNull {
+                        it.type == com.dhaval.echo.data.db.EntityType.PROJECT
+                    } ?: uiState.linkedEntities.firstOrNull {
+                        it.type == com.dhaval.echo.data.db.EntityType.TOPIC
+                    }
+                    if (projectEntity != null) {
                         Spacer(modifier = Modifier.height(32.dp))
-                        ProjectContextSection(uiState.entry?.title ?: "")
+                        ProjectContextSection(
+                            projectName = projectEntity.name,
+                            onClick = { onNavigateToEntity(projectEntity.entityId) }
+                        )
+                    }
 
+                    if (uiState.relatedEntries.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(32.dp))
                         RelatedMemoriesSection(
                             relatedEntries = uiState.relatedEntries,
@@ -132,14 +199,18 @@ fun EntryDetailsScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
-                    
-                    TranscriptSection(
-                        transcript = it.transcription,
-                        transcriptionStatus = it.transcriptionStatus,
-                        analysisStatus = it.analysisStatus
-                    )
-                    
+                    // A transcript only makes sense for a voice memo. On a photo or
+                    // text memory there is no audio, so the section (and its
+                    // "will appear here once processed" placeholder) is just noise.
+                    if (it.audioPath.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        TranscriptSection(
+                            transcript = it.transcription,
+                            transcriptionStatus = it.transcriptionStatus,
+                            analysisStatus = it.analysisStatus
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(48.dp))
                 }
             }
@@ -170,6 +241,387 @@ fun EntryDetailsScreen(
 }
 
 @Composable
+private fun TextContentSection(text: String) {
+    Column {
+        Text(
+            text = "Entry",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 28.sp),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun ImageGallerySection(
+    imagePaths: List<String>,
+    captions: Map<String, String> = emptyMap(),
+    onSaveCaption: ((path: String, caption: String) -> Unit)? = null
+) {
+    // Which photo the full-screen viewer is showing; null = closed.
+    var viewerIndex by remember { mutableStateOf<Int?>(null) }
+
+    Column {
+        Text(
+            text = "Photos",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(12.dp))
+        val columns = 3
+        val rows = (imagePaths.size + columns - 1) / columns
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            repeat(rows) { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(columns) { col ->
+                        val index = row * columns + col
+                        if (index < imagePaths.size) {
+                            AsyncImage(
+                                model = imagePaths[index],
+                                contentDescription = "Photo ${index + 1}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewerIndex = index }
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    viewerIndex?.let { start ->
+        PhotoViewerDialog(
+            imagePaths = imagePaths,
+            initialIndex = start,
+            onDismiss = { viewerIndex = null },
+            captionFor = { path -> captions[path].orEmpty() },
+            onSaveCaption = onSaveCaption
+        )
+    }
+}
+
+/**
+ * The evidence board, user-facing: people, projects & topics, tasks, and mood
+ * that Echo extracted — every conclusion traceable (inferred links are marked;
+ * confidence shown for anything uncertain). No magic.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun UnderstandingSection(
+    entities: List<com.dhaval.echo.data.db.LinkedEntityView>,
+    items: List<com.dhaval.echo.data.db.ExtractedItem>
+) {
+    val people = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.PERSON }
+    val activities = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.ACTIVITY }
+    val objects = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.OBJECT }
+    val places = entities.filter { it.type == com.dhaval.echo.data.db.EntityType.PLACE }
+    // Whatever is left that isn't a feeling — projects, topics, orgs, products.
+    val topics = entities.filter {
+        it.type !in setOf(
+            com.dhaval.echo.data.db.EntityType.PERSON,
+            com.dhaval.echo.data.db.EntityType.ACTIVITY,
+            com.dhaval.echo.data.db.EntityType.OBJECT,
+            com.dhaval.echo.data.db.EntityType.PLACE,
+            com.dhaval.echo.data.db.EntityType.FEELING
+        )
+    }
+    val facets = items.filter { it.kind in com.dhaval.echo.data.db.ItemKind.FACETS }
+    val tasks = items.filter {
+        it.kind == com.dhaval.echo.data.db.ItemKind.TASK ||
+            it.kind == com.dhaval.echo.data.db.ItemKind.REMINDER
+    }
+    // Feelings are entities now (Phase B); legacy MOOD items still render for
+    // memories captured before the graduation.
+    val moods = (
+        entities.filter { it.type == com.dhaval.echo.data.db.EntityType.FEELING }.map { it.name } +
+            items.filter { it.kind == com.dhaval.echo.data.db.ItemKind.MOOD }.map { it.value }
+        ).distinct()
+
+    Column {
+        if (people.isNotEmpty()) {
+            UnderstandingGroup("People") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    people.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (activities.isNotEmpty()) {
+            UnderstandingGroup("Activities") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    activities.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (objects.isNotEmpty()) {
+            UnderstandingGroup("Things") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    objects.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (places.isNotEmpty()) {
+            UnderstandingGroup("Places") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    places.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (topics.isNotEmpty()) {
+            UnderstandingGroup("Topics & Projects") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    topics.forEach { EntityChip(it) }
+                }
+            }
+        }
+
+        if (tasks.isNotEmpty()) {
+            UnderstandingGroup("Action Items") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tasks.forEach { task ->
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = task.value,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                task.dueAtMillis?.let { due ->
+                                    Text(
+                                        text = java.time.Instant.ofEpochMilli(due)
+                                            .atZone(java.time.ZoneId.systemDefault())
+                                            .format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d 'at' HH:mm")),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (facets.isNotEmpty()) {
+            UnderstandingGroup("At a glance") {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Ordered so the row reads the same way on every memory —
+                    // what it is, then where it belongs, then how much it matters.
+                    FACET_ORDER.forEach { kind ->
+                        facets.firstOrNull { it.kind == kind }?.let { FacetChip(it) }
+                    }
+                }
+            }
+        }
+
+        if (moods.isNotEmpty()) {
+            UnderstandingGroup("Mood") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    moods.forEach { mood ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = mood,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "Still understanding this memory — 7 of 22."
+ *
+ * Deliberately quiet and deliberately honest. Extraction takes minutes on
+ * device, and without this a memory that has answered six of its questions
+ * looks like a memory Echo simply failed at. It disappears the moment every
+ * question has settled.
+ */
+@Composable
+private fun UnderstandingProgressRow(progress: UnderstandingProgress) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(
+            progress = { progress.settled.toFloat() / progress.total.coerceAtLeast(1) },
+            modifier = Modifier.size(14.dp),
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "Still understanding this memory — ${progress.settled} of ${progress.total}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun UnderstandingGroup(title: String, content: @Composable () -> Unit) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.height(10.dp))
+        content()
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+/**
+ * Below this, a stated conclusion shows its confidence next to it. Above it,
+ * the number would be clutter — the chip being there is the claim.
+ */
+private const val CONFIDENCE_SHOWN_BELOW = 0.7f
+
+/** The facet row's fixed order, so it reads identically on every memory. */
+private val FACET_ORDER = listOf(
+    com.dhaval.echo.data.db.ItemKind.MEMORY_TYPE,
+    com.dhaval.echo.data.db.ItemKind.CATEGORY,
+    com.dhaval.echo.data.db.ItemKind.INTENT,
+    com.dhaval.echo.data.db.ItemKind.PRIORITY
+)
+
+/**
+ * A glyph per kind of thing.
+ *
+ * Chips carry no type label, so the glyph is what distinguishes "Prabir" the
+ * person from "Swimming" the activity at a glance — the difference between a
+ * row of chips reading as facets and reading as a bag of words.
+ */
+private fun glyphForEntity(type: String): String = when (type) {
+    com.dhaval.echo.data.db.EntityType.PERSON -> "👤"
+    com.dhaval.echo.data.db.EntityType.ACTIVITY -> "🏊"
+    com.dhaval.echo.data.db.EntityType.OBJECT -> "🎒"
+    com.dhaval.echo.data.db.EntityType.PLACE -> "📍"
+    com.dhaval.echo.data.db.EntityType.ORG -> "🏢"
+    com.dhaval.echo.data.db.EntityType.PROJECT -> "📁"
+    com.dhaval.echo.data.db.EntityType.PRODUCT -> "🛍"
+    com.dhaval.echo.data.db.EntityType.FEELING -> "💭"
+    else -> "🏷"
+}
+
+private fun glyphForFacet(kind: String): String = when (kind) {
+    com.dhaval.echo.data.db.ItemKind.MEMORY_TYPE -> "📝"
+    com.dhaval.echo.data.db.ItemKind.CATEGORY -> "🗂"
+    com.dhaval.echo.data.db.ItemKind.INTENT -> "🎯"
+    com.dhaval.echo.data.db.ItemKind.PRIORITY -> "⭐"
+    else -> "🏷"
+}
+
+/**
+ * One interpretive verdict about the memory.
+ *
+ * Styled apart from the entity chips: a facet is Echo's reading of the memory,
+ * not something the memory names, and the two should not look like the same
+ * kind of claim.
+ */
+@Composable
+private fun FacetChip(facet: com.dhaval.echo.data.db.ExtractedItem) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = CircleShape
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(text = glyphForFacet(facet.kind), style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = facet.value,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun EntityChip(entity: com.dhaval.echo.data.db.LinkedEntityView) {
+    Surface(
+        color = if (entity.inferred) MaterialTheme.colorScheme.surfaceVariant
+        else MaterialTheme.colorScheme.secondaryContainer,
+        shape = CircleShape
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(text = glyphForEntity(entity.type), style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = entity.name,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            // Every conclusion carries a confidence, and anything Echo is not
+            // sure of says so. Inferred links (derived by graph traversal rather
+            // than stated) always show theirs; stated ones only when they are
+            // shaky enough that the user should weigh them — a chip at 95% with
+            // a number on it is just noise.
+            val showConfidence = entity.inferred || entity.confidence < CONFIDENCE_SHOWN_BELOW
+            if (showConfidence) {
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "~${(entity.confidence * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SummarySection(summary: String) {
     Column {
         Text(
@@ -187,6 +639,36 @@ private fun SummarySection(summary: String) {
             ),
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+/** "Echo sees…" — what on-device photo understanding found (labels + place). */
+@Composable
+private fun EchoSeesSection(summary: String) {
+    EchoCard(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Visibility,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = "Echo sees",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
     }
 }
 
@@ -210,7 +692,7 @@ private fun EntryHeader(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
@@ -238,6 +720,17 @@ private fun PlaybackCard(
     }
 }
 
+/**
+ * Duration, and the memory's tags.
+ *
+ * Tags here are the *editable* surface — entity names Echo extracted, plus
+ * anything the user added themselves. There is deliberately no fallback when
+ * extraction finds nothing: this section used to be backfilled with the
+ * memory's most frequent words, so a note about taking Prabir swimming showed
+ * "Need · Next · Take · Think · Week". That looked like understanding, was
+ * noise, and hid the real problem — that nothing had been extracted at all.
+ * An empty row is the honest answer, and the + button is right there.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InfoSection(
@@ -259,9 +752,9 @@ private fun InfoSection(
             Spacer(Modifier.weight(1f))
             Text(text = duration, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -345,8 +838,52 @@ private fun CollectionsSection(
     }
 }
 
+/**
+ * The Worlds this memory belongs to — discovered from the graph, not filed by
+ * hand. Tapping one enters that World (its central entity).
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ProjectContextSection(title: String) {
+private fun WorldsSection(
+    worlds: List<com.dhaval.echo.data.understanding.DiscoveredWorld>,
+    onWorldClick: (com.dhaval.echo.data.understanding.DiscoveredWorld) -> Unit
+) {
+    Column {
+        Text(
+            text = "Worlds",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "The parts of your life this memory connects to.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            worlds.forEach { world ->
+                AssistChip(
+                    onClick = { onWorldClick(world) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.Public, contentDescription = null,
+                            modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    label = { Text(world.title) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectContextSection(projectName: String, onClick: () -> Unit) {
     Column {
         Text(
             text = "Project Context",
@@ -355,6 +892,7 @@ private fun ProjectContextSection(title: String) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         EchoCard(
+            onClick = onClick,
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -367,12 +905,12 @@ private fun ProjectContextSection(title: String) {
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        text = "Part of $title project",
+                        text = "Part of $projectName",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "This memory contributes to your ongoing work on $title.",
+                        text = "This memory contributes to your ongoing work on $projectName.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

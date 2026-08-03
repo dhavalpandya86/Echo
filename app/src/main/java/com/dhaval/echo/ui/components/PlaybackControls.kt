@@ -99,7 +99,9 @@ fun PlaybackControls(
                     Icon(
                         imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (state.isPlaying) "Pause" else "Play",
-                        tint = Color.White,
+                        // The circle behind this is `primary`, which in dark mode
+                        // is a light lavender — white on it would vanish.
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(32.dp)
                     )
                 }

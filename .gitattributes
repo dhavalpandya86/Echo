@@ -1,0 +1,4 @@
+# Path-independent globs: the model files moved into the asset-pack modules
+# (whisper_models/, embedding_models/) and must stay in LFS there.
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.tflite filter=lfs diff=lfs merge=lfs -text

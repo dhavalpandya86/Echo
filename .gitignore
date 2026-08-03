@@ -9,7 +9,25 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+# Unanchored: also covers app/build and the asset-pack modules' build dirs.
+build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
+# Signing — never commit the release keystore or its passwords
+*.jks
+*.keystore
+keystore.properties
+
+# Design handoff bundles (exports, not source)
+*.zip
+Echo Brand Identity Design-handoff/
+
+# Tooling scratch
+.artifacts/
+.idea/claudeCodeEditorTabs.xml
+
+# Project-local Gradle home (build cache — hundreds of MB, never source)
+.gradle-user-home/

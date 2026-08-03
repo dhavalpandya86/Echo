@@ -1,5 +1,7 @@
 [versions]
-agp = "9.2.1"
+# Prototype only (androidTest): LiteRT-LM for the Gemma 4 evaluation.
+litertlm = "0.14.0"
+agp = "9.3.0"
 coreKtx = "1.19.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -16,13 +18,18 @@ room = "2.8.4"
 media3 = "1.5.1"
 work = "2.10.0"
 hiltWork = "1.2.0"
-ksp = "2.2.10-2.0.2"
+ksp = "2.3.2"
 firebase-bom = "34.16.0"
 google-services = "4.5.0"
-facebook-sdk = "17.0.0"
 credentials = "1.2.2"
 googleid = "1.1.1"
 splashscreen = "1.0.1"
+okhttp = "4.12.0"
+datastore = "1.1.1"
+documentfile = "1.0.1"
+coil = "2.7.0"
+onnxruntime = "1.20.0"
+onnxruntimeExtensions = "0.13.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,18 +61,34 @@ androidx-media3-common = { group = "androidx.media3", name = "media3-common", ve
 androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
 hilt-work-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltWork" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version = "1.9.0" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version = "16.0.1" }
+mlkit-text-recognition-devanagari = { group = "com.google.mlkit", name = "text-recognition-devanagari", version = "16.0.1" }
+mlkit-image-labeling = { group = "com.google.mlkit", name = "image-labeling", version = "17.0.9" }
+mlkit-image-labeling-custom = { group = "com.google.mlkit", name = "image-labeling-custom", version = "17.0.3" }
+mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version = "16.1.7" }
 
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.2.0" }
-facebook-login = { group = "com.facebook.android", name = "facebook-login", version.ref = "facebook-sdk" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+androidx-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts" }
+onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
+onnxruntime-extensions-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-extensions-android", version.ref = "onnxruntimeExtensions" }
+
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-asset-pack = { id = "com.android.asset-pack", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

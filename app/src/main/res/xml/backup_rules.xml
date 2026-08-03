@@ -1,13 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   Android's own cloud backup (Android 11 and below).
+
+   Echo's memories are protected by its own local backup system, not by this.
+   What matters here is keeping a few files OUT, because they describe this
+   device and would be actively wrong on another one:
+
+     echo_backup_local   — the destination folder grant and last-run state. A
+                           grant restored onto a different phone points at a
+                           folder Echo has no permission to, possibly on storage
+                           that has never existed there.
+     echo_backup_secret  — the backup password, wrapped by a key that lives in
+                           this device's keystore and never leaves it. The blob
+                           is useless anywhere else, so carrying it is pure risk.
+     backup_index.json   — a cache describing one folder on one device.
+     backup_journal.json — an in-flight operation record. Restoring one would
+                           make a fresh install believe it had died mid-restore.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="sharedpref" path="echo_backup_local.xml" />
+    <exclude domain="sharedpref" path="echo_backup_secret.xml" />
+    <exclude domain="file" path="backup_index.json" />
+    <exclude domain="file" path="backup_journal.json" />
 </full-backup-content>

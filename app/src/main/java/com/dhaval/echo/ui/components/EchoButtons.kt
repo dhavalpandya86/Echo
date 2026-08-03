@@ -40,8 +40,8 @@ fun EchoButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy),
         label = "button_scale"
     )
 
@@ -53,7 +53,7 @@ fun EchoButton(
                 scaleX = scale
                 scaleY = scale
             },
-        shape = RoundedCornerShape(28.dp),
+        shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor

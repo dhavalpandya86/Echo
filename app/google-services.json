@@ -12,7 +12,44 @@
           "package_name": "com.dhaval.echo"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "994516006717-j5g0m3v5n0os82mp6mdsv50h6q92gh9a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhaval.echo",
+            "certificate_hash": "1ec856f3452b4e1e67f3055bfbd6857f818f8736"
+          }
+        },
+        {
+          "client_id": "994516006717-qjvep1r4mq2dcfst8n6ti65rmbh7jcnm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhaval.echo",
+            "certificate_hash": "dab379cc1be24b8aa60dce0dbae4047a3ec3b152"
+          }
+        },
+        {
+          "client_id": "994516006717-bku80h0hilqsjqomehle6n392co36o1h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhaval.echo",
+            "certificate_hash": "e0dfa29c057e88bbb1ecd9e658ee5b3c0ef5b11e"
+          }
+        },
+        {
+          "client_id": "994516006717-rtaa4mtlldo3794oiqs026de1hgt5qfa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhaval.echo",
+            "certificate_hash": "1f6ae3be698c10487c6b6e94c0567033cab6017b"
+          }
+        },
+        {
+          "client_id": "994516006717-m1482uhdkfluvqfmrkn8r4etem0u2jvf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAyDLap0pOVEbrD5Jwj1Ald6Y_zBSixJ64"
@@ -20,7 +57,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "994516006717-m1482uhdkfluvqfmrkn8r4etem0u2jvf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -23,8 +23,10 @@ object DatabaseModule {
             EchoDatabase::class.java,
             EchoDatabase.DATABASE_NAME
         )
-        .addMigrations(EchoDatabase.MIGRATION_8_9)
-        .fallbackToDestructiveMigration() // Strategy for initial dev phase
+        .addMigrations(*EchoDatabase.MIGRATIONS)
+        // No fallbackToDestructiveMigration: this database holds the user's
+        // diary. A missing migration must fail loudly at launch, not silently
+        // erase every memory they have.
         .build()
     }
 
@@ -46,5 +48,10 @@ object DatabaseModule {
     @Provides
     fun provideIntelligenceDao(database: EchoDatabase): com.dhaval.echo.data.db.IntelligenceDao {
         return database.intelligenceDao()
+    }
+
+    @Provides
+    fun provideUnderstandingDao(database: EchoDatabase): com.dhaval.echo.data.db.UnderstandingDao {
+        return database.understandingDao()
     }
 }

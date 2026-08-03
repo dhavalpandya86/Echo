@@ -1,6 +1,7 @@
 package com.dhaval.echo.domain.timeline
 
 import com.dhaval.echo.domain.ai.IntelligenceStatus
+import com.dhaval.echo.domain.video.VideoAttachment
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
 
@@ -20,7 +21,15 @@ data class TimelineEntry(
     val analysisStatus: IntelligenceStatus = IntelligenceStatus.COMPLETED,
     val relatedMemoriesCount: Int = 0,
     val isSynced: Boolean = false,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val textContent: String? = null,
+    val imagePaths: List<String>? = null,
+    val entryType: String = "VOICE",
+    val videos: List<VideoAttachment> = emptyList(),
+    /** On-device "Echo sees…" summary of the memory's photos. */
+    val visualSummary: String? = null,
+    /** User-written captions keyed by photo path. */
+    val photoCaptions: Map<String, String> = emptyMap()
 )
 
 /**

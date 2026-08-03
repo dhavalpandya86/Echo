@@ -17,17 +17,55 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 
+/**
+ * @param onSearch when non-null, the bar submits on the keyboard's Search action
+ *   (used by Reflect, where the query is asked rather than filtered live). When
+ *   null the bar filters reactively as the user types (Story/Remember).
+ */
 @Composable
 fun EchoSearchBar(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSearch: (() -> Unit)? = null
 ) {
+    // The bar owns the cursor, not the caller.
+    //
+    // A `String` carries no selection, so a TextField driven by one puts the
+    // cursor wherever it likes whenever the value it is handed changes. On the
+    // reactive screens the value round-trips through a StateFlow *and a Room
+    // query* before coming back, so the field recomposes at least once with the
+    // previous text — and that reset the caret to 0. Typing "prabir" produced
+    // "rabirP": the first letter landed, the caret jumped home, and every letter
+    // after it was inserted in front.
+    //
+    // Holding a TextFieldValue here keeps text and selection together through
+    // that round trip. The caller still only ever sees a String.
+    var field by remember { mutableStateOf(TextFieldValue(value)) }
+
+    // Adopt changes that came from somewhere other than this keyboard — a clear
+    // button, a restored query, a prompt tapped in Reflect. Guarded on the text
+    // actually differing, so the caller echoing back what was just typed is not
+    // mistaken for an external edit and does not disturb the caret.
+    LaunchedEffect(value) {
+        if (value != field.text) {
+            field = TextFieldValue(value, TextRange(value.length))
+        }
+    }
+
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     
@@ -42,8 +80,11 @@ fun EchoSearchBar(
     )
 
     TextField(
-        value = value,
-        onValueChange = onValueChange,
+        value = field,
+        onValueChange = {
+            field = it
+            onValueChange(it.text)
+        },
         placeholder = { 
             Text(
                 placeholder, 
@@ -73,6 +114,13 @@ fun EchoSearchBar(
         },
         shape = RoundedCornerShape(28.dp),
         interactionSource = interactionSource,
-        textStyle = MaterialTheme.typography.bodyLarge
+        textStyle = MaterialTheme.typography.bodyLarge,
+        singleLine = onSearch != null,
+        keyboardOptions = if (onSearch != null) {
+            KeyboardOptions(imeAction = ImeAction.Search)
+        } else KeyboardOptions.Default,
+        keyboardActions = if (onSearch != null) {
+            KeyboardActions(onSearch = { onSearch() })
+        } else KeyboardActions.Default
     )
 }

@@ -39,7 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.dhaval.echo.ui.theme.EchoDeepIndigo
+import com.dhaval.echo.ui.theme.EchoIndigo
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -220,7 +220,9 @@ fun RecordScreen(
                             Icon(
                                 Icons.Default.Check,
                                 contentDescription = null,
-                                tint = Color.White,
+                                // Sits on `primary`, which is a light lavender in
+                                // dark mode — this must invert with it.
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(64.dp)
                             )
                         }
@@ -302,7 +304,7 @@ private fun AmbientBackground(isRecording: Boolean, reduceMotion: Boolean) {
             }
             .background(
                 Brush.radialGradient(
-                    colors = listOf(EchoDeepIndigo.copy(alpha = 0.3f), Color.Transparent),
+                    colors = listOf(EchoIndigo.copy(alpha = 0.3f), Color.Transparent),
                     center = Offset(0f, 0f),
                     radius = 1200f
                 )
@@ -371,9 +373,9 @@ private fun RealWaveform(
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        EchoDeepIndigo.copy(alpha = 0.3f),
-                        EchoDeepIndigo,
-                        EchoDeepIndigo.copy(alpha = 0.3f)
+                        EchoIndigo.copy(alpha = 0.3f),
+                        EchoIndigo,
+                        EchoIndigo.copy(alpha = 0.3f)
                     )
                 ),
                 topLeft = Offset(x, y),
@@ -486,14 +488,14 @@ private fun BreathingRecordButton(
                 .size(110.dp)
                 .scale(scale + 0.1f)
                 .alpha(glowAlpha)
-                .background(EchoDeepIndigo, CircleShape)
+                .background(EchoIndigo, CircleShape)
                 .blur(30.dp)
         )
 
         // Duration Ring
         Canvas(modifier = Modifier.size(96.dp)) {
             drawArc(
-                color = EchoDeepIndigo.copy(alpha = 0.1f),
+                color = EchoIndigo.copy(alpha = 0.1f),
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -502,7 +504,7 @@ private fun BreathingRecordButton(
             
             if (isRecording) {
                 drawArc(
-                    color = EchoDeepIndigo,
+                    color = EchoIndigo,
                     startAngle = rotation,
                     sweepAngle = 120f,
                     useCenter = false,
@@ -516,7 +518,7 @@ private fun BreathingRecordButton(
             onClick = onClick,
             enabled = !isFinishing,
             shape = CircleShape,
-            color = if (isRecording) EchoDeepIndigo else MaterialTheme.colorScheme.surface,
+            color = if (isRecording) EchoIndigo else MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp,
             shadowElevation = 12.dp,
             modifier = Modifier
