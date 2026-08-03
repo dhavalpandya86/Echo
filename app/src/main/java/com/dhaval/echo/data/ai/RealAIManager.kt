@@ -237,19 +237,14 @@ class RealAIManager @Inject constructor(
             else -> FakeTimelineIntelligenceService()
         }
 
-    override fun getConversationService(): ConversationService =
-        when (_currentProvider.value.id) {
-            "claude" -> if (claudeApiKey.isNotBlank()) {
-                ClaudeConversationService(claudeApiKey, memoryContextBuilder.get(), conversationRepository)
-            } else {
-                RealConversationService(memoryContextBuilder.get(), conversationRepository, this)
-            }
-            // RealConversationService now talks back through the cloud narrative
-            // engine when a key exists (OpenAI/Gemini), and degrades to its
-            // on-device template otherwise — so it's the right service for local
-            // and every keyed cloud provider. No more FakeConversationService.
-            else -> RealConversationService(memoryContextBuilder.get(), conversationRepository, this)
-        }
+    // getConversationService is gone. Reflect is no longer a per-provider service
+    // chosen here: the Reflection Engine runs the same pipeline for everyone and
+    // picks its narrator internally, so the cloud/local split happens at the last
+    // stage instead of at construction. That also fixes a real cold-start bug —
+    // the service used to be resolved once, against `_currentProvider` while it
+    // still held the default, so a Claude user could be bound to the local branch
+    // for the whole session. ConversationService is bound directly in
+    // AiConversationModule now.
 
     /**
      * The rules-based specialists, always. Cloud extraction is no longer routed

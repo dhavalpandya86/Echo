@@ -47,7 +47,6 @@ import com.dhaval.echo.ui.components.EchoTopBar
 @Composable
 fun SettingsScreen(
     onNavigateToAiSettings: () -> Unit = {},
-    onNavigateToCollections: () -> Unit = {},
     onNavigateBack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -80,25 +79,7 @@ fun SettingsScreen(
                 onClick = { showNameDialog = true }
             )
 
-            MemoryStatusCard(
-                status = uiState.memoryStatus,
-                onAnalyzeNow = {
-                    UnderstandingBackfillWorker.enqueue(context)
-                    Toast.makeText(
-                        context,
-                        "Echo is reading through your memories.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            )
-
             SettingsGroup(title = "Memory") {
-                SettingsItem(
-                    icon = Icons.Default.Collections,
-                    title = "Collections",
-                    subtitle = "Group memories that belong together",
-                    onClick = onNavigateToCollections
-                )
                 SettingsItem(
                     icon = Icons.Default.SdCard,
                     title = "Storage",
@@ -133,13 +114,10 @@ fun SettingsScreen(
                 }
             }
 
+            // Display Name is not repeated here: the profile card at the top is
+            // already the place you tap to change it, and offering the same
+            // action twice makes the page feel longer without making it richer.
             SettingsGroup(title = "General") {
-                SettingsItem(
-                    icon = Icons.Default.Person,
-                    title = "Display Name",
-                    value = uiState.displayName ?: "Not set",
-                    onClick = { showNameDialog = true }
-                )
                 SettingsItem(
                     icon = Icons.Default.Palette,
                     title = "Appearance",
@@ -240,67 +218,6 @@ private fun ProfileHeader(name: String?, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-        }
-    }
-}
-
-/**
- * The one card on this page that reports live system state.
- *
- * It earns its place because it answers a question the user genuinely has —
- * "has Echo caught up with what I've given it?" — from real extraction runs
- * rather than a decorative tick. When work is outstanding it offers the action
- * that resolves it, so seeing the problem and fixing it is one tap.
- */
-@Composable
-private fun MemoryStatusCard(status: MemoryStatus, onAnalyzeNow: () -> Unit) {
-    val upToDate = status.isUpToDate
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = if (upToDate) MaterialTheme.colorScheme.surfaceContainerLowest
-        else MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(20.dp)) {
-            Text(
-                text = "Memory Status",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(10.dp))
-
-            if (upToDate) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Everything is up to date.",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-                status.lastAnalyzedLabel?.let {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "Last analyzed $it.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                Text(
-                    text = if (status.awaiting == 1) "1 memory is waiting to be organized."
-                    else "${status.awaiting} memories are waiting to be organized.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(Modifier.height(14.dp))
-                EchoButton(text = "Analyze Now", onClick = onAnalyzeNow)
             }
         }
     }

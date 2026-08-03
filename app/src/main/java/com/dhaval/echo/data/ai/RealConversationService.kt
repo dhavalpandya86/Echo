@@ -1,16 +1,31 @@
 package com.dhaval.echo.data.ai
 
 import com.dhaval.echo.domain.ai.*
+import com.dhaval.echo.domain.auth.AuthRepository
+import com.dhaval.echo.domain.reflection.ReflectionEngine
 import kotlinx.coroutines.flow.*
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import javax.inject.Inject
 
+/**
+ * Reflect, backed by the Reflection Engine.
+ *
+ * This used to build a RAG context block and, with no cloud key, hand that block
+ * straight to the UI as the answer — so asking "what have I been thinking about"
+ * returned "Here is the relevant context from the user's memories: Memory: …
+ * Transcript: …". That is the prompt, not the reply.
+ *
+ * The engine now owns every stage, and this class is only the bridge between a
+ * question and a stored message. Nothing here composes user-visible prose, which
+ * is what makes it impossible for prompt scaffolding to leak into the transcript
+ * again.
+ */
 class RealConversationService @Inject constructor(
-    private val memoryContextBuilder: MemoryContextBuilder,
     private val conversationRepository: ConversationRepository,
-    private val aiManager: AIManager
+    private val reflectionEngine: ReflectionEngine,
+    private val authRepository: AuthRepository
 ) : ConversationService {
 
     private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
@@ -20,70 +35,56 @@ class RealConversationService @Inject constructor(
         conversationId: String?,
         contextOverride: ConversationContext?
     ): Flow<Message> = flow {
-        val targetConversationId = conversationId ?: conversationRepository.createConversation(question.take(30) + "...")
-        
-        // 1. Add user message
-        val userMessage = Message(
-            id = UUID.randomUUID().toString(),
-            conversationId = targetConversationId,
-            content = question,
-            role = MessageRole.USER,
-            createdAt = LocalDateTime.now().format(formatter)
-        )
-        conversationRepository.addMessage(userMessage)
+        val targetConversationId = conversationId
+            ?: conversationRepository.createConversation(question.take(30) + "...")
 
-        // 2. Build context
-        val context = memoryContextBuilder.buildContext(question).first()
-        val citations = memoryContextBuilder.buildCitations(question).first()
-        
-        // 3. Generate the answer. With a cloud key, Echo talks back — a warm,
-        //    grounded paragraph synthesised from the retrieved memories. Without
-        //    one, we degrade to the on-device template so the free tier still
-        //    answers (just less fluently), honouring the key-gated-with-fallback
-        //    contract.
-        val narrator = aiManager.getNarrativeService()
-        val responseContent = if (narrator != null && context.isNotBlank()) {
-            narrator.narrate(
-                instruction = "The user asked: \"$question\". Answer them directly, in a warm " +
-                    "and personal short paragraph, as if you remember their life. Ground every " +
-                    "claim in the memories below and don't invent anything. If the memories don't " +
-                    "really cover the question, say so gently.",
-                memoriesBlock = context
-            ) ?: localAnswer(question, context)
-        } else {
-            localAnswer(question, context)
+        conversationRepository.addMessage(
+            Message(
+                id = UUID.randomUUID().toString(),
+                conversationId = targetConversationId,
+                content = question,
+                role = MessageRole.USER,
+                createdAt = LocalDateTime.now().format(formatter)
+            )
+        )
+
+        val userId = authRepository.getCurrentUser()?.id
+        val reflection = if (userId == null) null else reflectionEngine.reflect(question, userId)
+
+        // The planner note rides with the reflection rather than replacing it,
+        // and only appears when the engine found something genuinely worth
+        // raising — see RealReflectionEngine.attentionFrom.
+        val body = when {
+            reflection == null -> "I can't reach your memories right now."
+            reflection.attention != null -> "${reflection.text}\n\n${reflection.attention}"
+            else -> reflection.text
         }
 
         val assistantMessage = Message(
             id = UUID.randomUUID().toString(),
             conversationId = targetConversationId,
-            content = responseContent,
+            content = body,
             role = MessageRole.ASSISTANT,
             createdAt = LocalDateTime.now().format(formatter),
-            citations = citations,
-            reasoning = "Retrieved ${citations.size} related memories."
+            citations = reflection?.sources.orEmpty(),
+            reasoning = reflection?.basis
         )
-        
-        // 4. Add assistant message
+
         conversationRepository.addMessage(assistantMessage)
-        
         emit(assistantMessage)
     }
 
-    /** On-device fallback answer when no cloud key is set. */
-    private fun localAnswer(question: String, context: String): String =
-        if (context.contains("Memory:")) {
-            "Based on your memories about \"$question\", I found some relevant information. $context"
-        } else {
-            "I couldn't find any specific memories related to \"$question\"."
-        }
-
     override fun getSuggestedQuestions(): Flow<List<String>> = flow {
-        emit(listOf(
-            "What have I been thinking about lately?",
-            "What projects am I working on?",
-            "Summarize my recent travel thoughts.",
-            "What ideas have I repeated?"
-        ))
+        // Phrased to match the intents the engine actually recognises, so a
+        // tapped prompt lands on a real pipeline rather than the open-question
+        // catch-all.
+        emit(
+            listOf(
+                "What did I focus on this week?",
+                "What have I been thinking about?",
+                "What am I forgetting?",
+                "How have I been feeling lately?"
+            )
+        )
     }
 }

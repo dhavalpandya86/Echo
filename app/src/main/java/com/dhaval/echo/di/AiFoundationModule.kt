@@ -54,7 +54,7 @@ object AiServiceModule {
     fun provideTimelineIntelligenceService(aiManager: AIManager): TimelineIntelligenceService =
         aiManager.getTimelineIntelligenceService()
 
-    @Provides
-    fun provideConversationService(aiManager: AIManager): ConversationService =
-        aiManager.getConversationService()
+    // ConversationService is bound directly in AiConversationModule — Reflect
+    // goes through the Reflection Engine for every provider now, so there is no
+    // per-provider choice left to make here.
 }

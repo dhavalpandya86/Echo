@@ -34,6 +34,20 @@ data class RelatedEntityView(
     val confidence: Float
 )
 
+/**
+ * An entity mention inside a time window, with the memory it came from.
+ *
+ * Kept separate from [LinkedEntityView] because reflection needs to group
+ * entities *by memory* to build themes, and that view deliberately omits the
+ * memory id — it is always queried for one memory at a time.
+ */
+data class WindowEntityView(
+    val memoryId: String,
+    val entityId: String,
+    val name: String,
+    val type: String
+)
+
 /** A connection Echo inferred (Stage-6) — a memory linked to an entity it didn't name. */
 data class InferredConnectionView(
     val memoryId: String,
@@ -369,6 +383,46 @@ interface UnderstandingDao {
     )
     fun memoriesWithFacet(userId: String, kind: String, value: String): Flow<List<DiaryEntry>>
 
+    // ── Reflection (windowed, structured retrieval) ──────────────────
+    // These read the graph in bulk over a time window rather than per memory.
+    // Reflection reasons over counts and names, so it wants everything in the
+    // window at once — a per-memory loop would issue one query per day of diary.
+
+    /**
+     * Every stated entity link for memories captured since [since], carrying the
+     * memory id so callers can group entities by the memory they came from.
+     *
+     * Inferred links are excluded: a reflection should be built from what the
+     * user actually said, not from what the graph guessed.
+     */
+    @Query(
+        """SELECT l.memoryId AS memoryId, l.entityId AS entityId,
+                  e.name AS name, e.type AS type
+           FROM memory_entity_links l
+           JOIN entities e ON e.id = l.entityId
+           JOIN diary_entries d ON d.id = l.memoryId
+           WHERE e.userId = :userId AND d.deleted = 0 AND l.inferred = 0
+             AND e.archived = 0 AND d.createdAt >= :since"""
+    )
+    suspend fun linkedEntitiesSince(userId: String, since: java.time.LocalDateTime): List<WindowEntityView>
+
+    /** Every extracted item — facets, commitments, moods — in the window. */
+    @Query(
+        """SELECT i.* FROM extracted_items i
+           JOIN diary_entries d ON d.id = i.memoryId
+           WHERE i.userId = :userId AND d.deleted = 0 AND d.createdAt >= :since"""
+    )
+    suspend fun itemsSince(userId: String, since: java.time.LocalDateTime): List<ExtractedItem>
+
+    /** Which memories a given entity appears in, for relationship questions. */
+    @Query(
+        """SELECT d.id FROM diary_entries d
+           JOIN memory_entity_links l ON l.memoryId = d.id
+           WHERE l.entityId = :entityId AND d.deleted = 0 AND l.inferred = 0
+           ORDER BY d.createdAt DESC"""
+    )
+    suspend fun memoryIdsForEntity(entityId: String): List<String>
+
     // ── Extraction runs (pipeline progress) ──────────────────────────
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -397,37 +451,6 @@ interface UnderstandingDao {
 
     @Query("DELETE FROM memory_extraction_runs WHERE memoryId = :memoryId")
     suspend fun deleteRunsForMemory(memoryId: String)
-
-    /**
-     * How many memories still have questions outstanding.
-     *
-     * A memory counts as waiting when it has fewer settled runs than the
-     * registry has questions — which covers both "never processed" (no rows at
-     * all) and "partly processed" (interrupted mid-run). Deleted memories and
-     * ones with nothing to read are excluded, since neither is waiting on
-     * anything.
-     *
-     * This is the number behind the Memory Status card, so it has to mean
-     * exactly what it says: work Echo still owes the user.
-     */
-    @Query(
-        """SELECT COUNT(*) FROM diary_entries d
-           WHERE d.userId = :userId AND d.deleted = 0
-             AND (d.transcript IS NOT NULL AND TRIM(d.transcript) != ''
-                  OR d.textContent IS NOT NULL AND TRIM(d.textContent) != '')
-             AND (
-               SELECT COUNT(*) FROM memory_extraction_runs r
-               WHERE r.memoryId = d.id AND r.status IN ('COMPLETED','SKIPPED')
-             ) < :questionCount"""
-    )
-    fun countMemoriesAwaitingUnderstanding(userId: String, questionCount: Int): Flow<Int>
-
-    /** When understanding last finished anything, for "last analyzed". */
-    @Query(
-        """SELECT MAX(completedAt) FROM memory_extraction_runs
-           WHERE userId = :userId AND status = 'COMPLETED'"""
-    )
-    fun lastAnalyzedAt(userId: String): Flow<java.time.LocalDateTime?>
 
     // ── Idempotent re-processing ─────────────────────────────────────
 

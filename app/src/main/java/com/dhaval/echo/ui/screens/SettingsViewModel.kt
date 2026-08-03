@@ -2,7 +2,6 @@ package com.dhaval.echo.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dhaval.echo.data.db.UnderstandingDao
 import com.dhaval.echo.data.preferences.AppearanceMode
 import com.dhaval.echo.data.preferences.AppearancePreferences
 import com.dhaval.echo.data.user.StorageBreakdown
@@ -29,39 +28,8 @@ import java.time.Duration
 import java.time.LocalDateTime
 import javax.inject.Inject
 
-/**
- * How far along Echo is at understanding what it has been given.
- *
- * Derived entirely from extraction run rows, so it says something true rather
- * than reassuring: [awaiting] is the count of memories that still have questions
- * outstanding, and [lastAnalyzedAt] is when work last actually completed.
- */
-data class MemoryStatus(
-    val awaiting: Int = 0,
-    val lastAnalyzedAt: LocalDateTime? = null
-) {
-    val isUpToDate: Boolean get() = awaiting == 0
-
-    /** "5 minutes ago", "yesterday" — null when nothing has ever been analyzed. */
-    val lastAnalyzedLabel: String?
-        get() {
-            val at = lastAnalyzedAt ?: return null
-            val minutes = Duration.between(at, LocalDateTime.now()).toMinutes()
-            return when {
-                minutes < 1 -> "just now"
-                minutes < 60 -> "$minutes ${plural(minutes, "minute")} ago"
-                minutes < 1440 -> (minutes / 60).let { "$it ${plural(it, "hour")} ago" }
-                minutes < 2880 -> "yesterday"
-                else -> (minutes / 1440).let { "$it days ago" }
-            }
-        }
-
-    private fun plural(n: Long, word: String) = if (n == 1L) word else "${word}s"
-}
-
 data class SettingsUiState(
     val displayName: String? = null,
-    val memoryStatus: MemoryStatus = MemoryStatus(),
     val appearance: AppearanceMode = AppearanceMode.SYSTEM,
     val brains: List<BrainStatus> = emptyList(),
     val storage: StorageBreakdown? = null,
@@ -73,7 +41,6 @@ class SettingsViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val authRepository: com.dhaval.echo.domain.auth.AuthRepository,
     private val appearancePreferences: AppearancePreferences,
-    private val understandingDao: UnderstandingDao,
     private val storageReporter: StorageReporter,
     private val aiManager: AIManager,
     private val engines: ExtractionEngineProvider,
@@ -88,26 +55,14 @@ class SettingsViewModel @Inject constructor(
         refreshBrains()
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val memoryStatus: StateFlow<MemoryStatus> =
-        authRepository.currentUserId.flatMapLatest { userId ->
-            if (userId == null) flowOf(MemoryStatus())
-            else combine(
-                understandingDao.countMemoriesAwaitingUnderstanding(userId, ExtractorRegistry.size),
-                understandingDao.lastAnalyzedAt(userId)
-            ) { awaiting, lastAt -> MemoryStatus(awaiting, lastAt) }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MemoryStatus())
-
     val uiState: StateFlow<SettingsUiState> = combine(
         userRepository.getUserProfile().map { it?.displayName },
-        memoryStatus,
         appearancePreferences.mode,
         brains,
         storage
-    ) { name, status, appearance, brainList, storageBreakdown ->
+    ) { name, appearance, brainList, storageBreakdown ->
         SettingsUiState(
             displayName = name,
-            memoryStatus = status,
             appearance = appearance,
             brains = brainList,
             storage = storageBreakdown,

@@ -50,7 +50,6 @@ interface AIManager {
     fun getSemanticSearchService(): SemanticSearchService
     fun getMemoryClassificationService(): MemoryClassificationService
     fun getTimelineIntelligenceService(): TimelineIntelligenceService
-    fun getConversationService(): ConversationService
 
     /**
      * The Memory Understanding analyzers to run for a memory (MU-1). Routes
