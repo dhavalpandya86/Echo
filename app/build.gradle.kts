@@ -71,6 +71,16 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            // android.util.Log throws "not mocked" on the JVM by default, so any
+            // class that logs — which is most of them — can't be unit tested at
+            // all. Returning defaults makes logging a no-op off-device instead
+            // of a reason to avoid testing the code that does it.
+            isReturnDefaultValues = true
+        }
+    }
+
     androidResources {
         // The ONNX model is already int8-quantized and does not compress
         // meaningfully; letting AAPT try costs build time and gains ~nothing.
@@ -126,6 +136,9 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.okhttp)
     implementation(libs.androidx.datastore.preferences)
+    // Backup destinations are user-chosen SAF folders; DocumentFile is what makes
+    // listing/creating/deleting inside a tree URI tractable.
+    implementation(libs.androidx.documentfile)
     implementation(libs.coil.compose)
     implementation(libs.androidx.ui.text.google.fonts)
     implementation(libs.onnxruntime.android)

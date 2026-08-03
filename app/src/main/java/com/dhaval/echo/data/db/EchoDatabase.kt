@@ -47,6 +47,33 @@ abstract class EchoDatabase : RoomDatabase() {
         const val DATABASE_NAME = "echo_db"
 
         /**
+         * Mirrors the `version` in the `@Database` annotation above, which Room
+         * does not expose until a database is open.
+         *
+         * Backup writes this into every archive's manifest, and restore compares
+         * it before unpacking anything: an archive from a newer Echo is refused
+         * with an explanation rather than being fed to a migration chain that
+         * has no idea what to do with it. Bump both together.
+         */
+        const val DATABASE_VERSION = 19
+
+        /**
+         * The whole migration chain, in one place.
+         *
+         * Restore needs the identical list: an archive from an older version is
+         * brought up to date by exactly the path an in-place upgrade would have
+         * taken, so there is no second, subtly different route into the current
+         * schema. Anywhere that opens this database must use this array.
+         */
+        val MIGRATIONS: Array<Migration> by lazy {
+            arrayOf(
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
+                MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19
+            )
+        }
+
+        /**
          * Memory Intelligence Pipeline: understanding becomes ~22 single-question
          * extractors run one at a time in the background, so the pipeline needs to
          * remember its own progress.

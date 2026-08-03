@@ -47,6 +47,7 @@ import com.dhaval.echo.ui.components.EchoTopBar
 @Composable
 fun SettingsScreen(
     onNavigateToAiSettings: () -> Unit = {},
+    onNavigateToBackup: () -> Unit = {},
     onNavigateBack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -88,11 +89,20 @@ fun SettingsScreen(
                     onClick = { showStorageDialog = true }
                 )
                 SettingsItem(
+                    icon = Icons.Default.CloudSync,
+                    title = "Backup & Restore",
+                    // Deliberately concrete about the thing people don't know:
+                    // uninstalling an Android app destroys its data, and Echo's
+                    // data is the only copy of the diary.
+                    subtitle = "Keep a copy that survives uninstalling Echo",
+                    onClick = onNavigateToBackup
+                )
+                SettingsItem(
                     icon = Icons.Default.Refresh,
                     title = "Rebuild Memory",
                     subtitle = "Read every memory again from the beginning",
                     onClick = {
-                        UnderstandingBackfillWorker.enqueue(context)
+                        viewModel.rebuildMemory()
                         Toast.makeText(
                             context,
                             "Echo is rebuilding what it knows. This can take a while.",

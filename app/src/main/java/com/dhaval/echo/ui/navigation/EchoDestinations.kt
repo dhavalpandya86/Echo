@@ -57,6 +57,20 @@ object SettingsRoute
 object AiSettingsRoute
 
 @Serializable
+object BackupRoute
+
+@Serializable
+object BackupHistoryRoute
+
+/**
+ * @param archiveUri set when arriving from history with a specific archive;
+ *   null means "let the user pick a file", which is the reinstall path from the
+ *   Welcome screen.
+ */
+@Serializable
+data class RestoreRoute(val archiveUri: String? = null)
+
+@Serializable
 object PrivacyPolicyRoute
 
 @Serializable

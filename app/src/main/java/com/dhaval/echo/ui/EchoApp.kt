@@ -84,6 +84,11 @@ fun EchoApp(
                 modifier = Modifier.padding(innerPadding)
             )
         }
+
+        // A restore ends by restarting the process, so the account of what it
+        // did has to be shown on the way back in. Hosted at the root rather
+        // than on a screen, because there is no telling where the user lands.
+        com.dhaval.echo.ui.settings.backup.RestoreReportDialog()
     }
 }
 

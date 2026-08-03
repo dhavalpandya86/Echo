@@ -1,7 +1,7 @@
 package com.dhaval.echo.data.user
 
 import android.content.Context
-import com.dhaval.echo.data.db.EchoDatabase
+import com.dhaval.echo.data.backup.EchoStorageRoots
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,17 +31,26 @@ data class StorageBreakdown(
 
 @Singleton
 class StorageReporter @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val roots: EchoStorageRoots
 ) {
 
+    /**
+     * Reads its directories from [EchoStorageRoots] rather than naming them
+     * here.
+     *
+     * This previously measured `recordings/` and `videos/` under both roots —
+     * directories nothing has ever written to. Audio is at `Echo/audio` and
+     * video at `Echo/video`, so the Storage row reported every user's
+     * recordings, the single largest thing Echo stores, as 0 bytes. One shared
+     * definition means the storage report and the backup can no longer disagree
+     * about where the data is, and the next directory that moves breaks both or
+     * neither.
+     */
     suspend fun measure(): StorageBreakdown = withContext(Dispatchers.IO) {
         StorageBreakdown(
-            audioBytes = sizeOf(context.filesDir.resolve("recordings")) +
-                sizeOf(context.getExternalFilesDir(null)?.resolve("recordings")),
-            mediaBytes = sizeOf(context.filesDir.resolve("images")) +
-                sizeOf(context.filesDir.resolve("videos")) +
-                sizeOf(context.getExternalFilesDir(null)?.resolve("images")) +
-                sizeOf(context.getExternalFilesDir(null)?.resolve("videos")),
+            audioBytes = sizeOf(roots.audio),
+            mediaBytes = sizeOf(roots.images) + sizeOf(roots.video) + sizeOf(roots.thumbnails),
             databaseBytes = databaseSize(),
             modelBytes = modelSize()
         )
@@ -54,20 +63,14 @@ class StorageReporter @Inject constructor(
      * been checkpointed into the main file, so reporting only the .db would
      * understate it and would visibly lag behind what the user just recorded.
      */
-    private fun databaseSize(): Long {
-        val db = context.getDatabasePath(EchoDatabase.DATABASE_NAME)
-        return listOf(db, File("${db.path}-wal"), File("${db.path}-shm")).sumOf { sizeOf(it) }
-    }
+    private fun databaseSize(): Long = roots.databaseFamily.sumOf { sizeOf(it) }
 
     /**
      * Models copied out of the asset packs into app storage so they can be
      * memory-mapped at runtime. The packs themselves are counted by the system
      * against the install, not here, so this is only the working copies.
      */
-    private fun modelSize(): Long =
-        sizeOf(context.filesDir.resolve("embeddings")) +
-            sizeOf(context.filesDir.resolve("whisper")) +
-            sizeOf(context.filesDir.resolve("models"))
+    private fun modelSize(): Long = roots.modelDirectories.sumOf { sizeOf(it) }
 
     private fun sizeOf(file: File?): Long {
         if (file == null || !file.exists()) return 0

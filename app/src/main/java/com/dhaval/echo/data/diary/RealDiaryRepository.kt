@@ -17,7 +17,8 @@ class RealDiaryRepository @Inject constructor(
     private val diaryEntryDao: DiaryEntryDao,
     private val authRepository: AuthRepository,
     private val intelligenceRepository: com.dhaval.echo.domain.intelligence.IntelligenceRepository,
-    private val videoStorageEngine: VideoStorageEngine
+    private val videoStorageEngine: VideoStorageEngine,
+    private val backupTriggers: com.dhaval.echo.data.backup.BackupTriggers
 ) : DiaryRepository {
     
     override fun getEntryById(id: String): Flow<DiaryEntry?> = authRepository.currentUserId.flatMapLatest { userId ->
@@ -58,6 +59,10 @@ class RealDiaryRepository @Inject constructor(
 
     override suspend fun deleteEntry(id: String) {
         val userId = authRepository.getCurrentUser()?.id ?: return
+        // Queued before the delete, not after. Echo soft-deletes, so the memory
+        // is still recoverable in-app either way — this covers the case that
+        // isn't, where a soft-deleted memory is later purged for good.
+        backupTriggers.onBeforeDeletingMemories(1)
         diaryEntryDao.softDeleteEntry(id, userId)
     }
 

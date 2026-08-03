@@ -60,6 +60,7 @@ class TextEntryViewModel @Inject constructor(
     private val storageEngine: AudioStorageEngine,
     private val sttEngine: SpeechToTextEngine,
     private val liveDictation: LiveDictation,
+    private val backupTriggers: com.dhaval.echo.data.backup.BackupTriggers,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -281,6 +282,7 @@ class TextEntryViewModel @Inject constructor(
         viewModelScope.launch {
             val paths = uris.mapNotNull { uri -> copyToInternalStorage(uri) }
             _uiState.update { it.copy(imagePaths = it.imagePaths + paths) }
+            if (paths.isNotEmpty()) backupTriggers.onMediaImported(paths.size)
         }
     }
 

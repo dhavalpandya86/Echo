@@ -24,6 +24,7 @@ class RealAudioRepository(
     private val diaryEntryDao: DiaryEntryDao,
     private val intelligenceRepository: IntelligenceRepository,
     private val authRepository: AuthRepository,
+    private val backupTriggers: com.dhaval.echo.data.backup.BackupTriggers,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) : AudioRepository {
 
@@ -89,6 +90,12 @@ class RealAudioRepository(
                         
                         // Trigger intelligence pipeline
                         intelligenceRepository.processEntry(sessionId)
+
+                        // The memory is safely in the database — protect it if
+                        // the user asked for that. A no-op unless they enabled a
+                        // recording trigger and chose a destination, and always
+                        // a Quick backup, so this costs nothing on the hot path.
+                        backupTriggers.onRecordingSaved()
 
                         _currentRecordingState.value = RecordingState.Idle
                     } catch (e: Exception) {

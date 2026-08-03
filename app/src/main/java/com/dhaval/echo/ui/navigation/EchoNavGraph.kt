@@ -26,8 +26,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.dhaval.echo.domain.auth.AuthState
 import com.dhaval.echo.ui.auth.*
+import androidx.navigation.toRoute
 import com.dhaval.echo.ui.screens.*
 import com.dhaval.echo.ui.settings.ai.AiSettingsScreen
+import com.dhaval.echo.ui.settings.backup.BackupHistoryScreen
+import com.dhaval.echo.ui.settings.backup.BackupScreen
+import com.dhaval.echo.ui.settings.backup.RestoreFlowScreen
 
 /**
  * Central Navigation Graph for Echo.
@@ -95,6 +99,7 @@ fun EchoNavGraph(
                             }
                     }
                 },
+                onRestoreBackup = { navController.navigate(RestoreRoute()) },
                 error = error
             )
         }
@@ -242,6 +247,7 @@ fun EchoNavGraph(
         composable<SettingsRoute> {
             SettingsScreen(
                 onNavigateToAiSettings = { navController.navigate(AiSettingsRoute) },
+                onNavigateToBackup = { navController.navigate(BackupRoute) },
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -249,6 +255,28 @@ fun EchoNavGraph(
         composable<AiSettingsRoute> {
             AiSettingsScreen(
                 onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable<BackupRoute> {
+            BackupScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenHistory = { navController.navigate(BackupHistoryRoute) },
+                onRestoreFromFile = { navController.navigate(RestoreRoute()) }
+            )
+        }
+
+        composable<BackupHistoryRoute> {
+            BackupHistoryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onRestore = { uri -> navController.navigate(RestoreRoute(uri)) }
+            )
+        }
+
+        composable<RestoreRoute> { entry ->
+            RestoreFlowScreen(
+                onNavigateBack = { navController.popBackStack() },
+                initialUri = entry.toRoute<RestoreRoute>().archiveUri
             )
         }
 

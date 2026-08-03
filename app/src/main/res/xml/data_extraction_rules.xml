@@ -1,19 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   Android 12+ backup and device-transfer rules.
+
+   See backup_rules.xml for the reasoning. The same four files are excluded from
+   both paths: they describe this installation — which folder Echo may write to,
+   when it last succeeded, and a password wrapped by a key that cannot leave this
+   device's keystore — and are meaningless or misleading anywhere else.
+
+   Device transfer excludes them too. A phone-to-phone transfer looks like the
+   one case where carrying them over might help, but the destination grant still
+   would not be valid on the new device, and a wrapped password whose key stayed
+   behind would decrypt to nothing.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="echo_backup_local.xml" />
+        <exclude domain="sharedpref" path="echo_backup_secret.xml" />
+        <exclude domain="file" path="backup_index.json" />
+        <exclude domain="file" path="backup_journal.json" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="echo_backup_local.xml" />
+        <exclude domain="sharedpref" path="echo_backup_secret.xml" />
+        <exclude domain="file" path="backup_index.json" />
+        <exclude domain="file" path="backup_journal.json" />
     </device-transfer>
-    -->
 </data-extraction-rules>

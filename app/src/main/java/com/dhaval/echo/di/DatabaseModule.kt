@@ -23,19 +23,7 @@ object DatabaseModule {
             EchoDatabase::class.java,
             EchoDatabase.DATABASE_NAME
         )
-        .addMigrations(
-            EchoDatabase.MIGRATION_8_9,
-            EchoDatabase.MIGRATION_9_10,
-            EchoDatabase.MIGRATION_10_11,
-            EchoDatabase.MIGRATION_11_12,
-            EchoDatabase.MIGRATION_12_13,
-            EchoDatabase.MIGRATION_13_14,
-            EchoDatabase.MIGRATION_14_15,
-            EchoDatabase.MIGRATION_15_16,
-            EchoDatabase.MIGRATION_16_17,
-            EchoDatabase.MIGRATION_17_18,
-            EchoDatabase.MIGRATION_18_19
-        )
+        .addMigrations(*EchoDatabase.MIGRATIONS)
         // No fallbackToDestructiveMigration: this database holds the user's
         // diary. A missing migration must fail loudly at launch, not silently
         // erase every memory they have.

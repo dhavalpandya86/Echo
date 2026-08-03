@@ -44,8 +44,21 @@ class SettingsViewModel @Inject constructor(
     private val storageReporter: StorageReporter,
     private val aiManager: AIManager,
     private val engines: ExtractionEngineProvider,
+    private val backupTriggers: com.dhaval.echo.data.backup.BackupTriggers,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
+
+    /**
+     * Rebuilding re-derives every entity, link and inference from scratch. It is
+     * idempotent in principle, but it rewrites most of the graph, so the
+     * previous one is archived first when the user has that trigger on.
+     */
+    fun rebuildMemory() {
+        viewModelScope.launch {
+            backupTriggers.onBeforeMemoryRebuild()
+            com.dhaval.echo.data.intelligence.UnderstandingBackfillWorker.enqueue(context)
+        }
+    }
 
     private val storage = MutableStateFlow<StorageBreakdown?>(null)
     private val brains = MutableStateFlow<List<BrainStatus>>(emptyList())

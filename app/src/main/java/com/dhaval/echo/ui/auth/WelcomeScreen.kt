@@ -34,6 +34,7 @@ fun WelcomeScreen(
     onLogin: () -> Unit,
     onPhoneLogin: () -> Unit,
     onGoogleSignIn: () -> Unit,
+    onRestoreBackup: () -> Unit = {},
     error: String? = null
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -138,6 +139,19 @@ fun WelcomeScreen(
             TextButton(onClick = onPhoneLogin) {
                 Text(
                     "Continue with phone",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            // The reinstall path. Android revokes the folder permission when an
+            // app is uninstalled, so Echo cannot find an existing backup on its
+            // own however hard it looks — the file is still there, the
+            // permission isn't. Offering this here, before sign-in, is what
+            // replaces the "we found a backup" prompt other apps can show.
+            TextButton(onClick = onRestoreBackup) {
+                Text(
+                    "Restore from a backup",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium
                 )
