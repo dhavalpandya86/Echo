@@ -39,6 +39,12 @@ abstract class AiConversationModule {
 
     @Binds
     @Singleton
+    abstract fun bindReflectionValidator(
+        impl: com.dhaval.echo.data.reflection.GroundedReflectionValidator
+    ): com.dhaval.echo.domain.reflection.ReflectionValidator
+
+    @Binds
+    @Singleton
     abstract fun bindReflectionEngine(
         impl: com.dhaval.echo.data.reflection.RealReflectionEngine
     ): com.dhaval.echo.domain.reflection.ReflectionEngine

@@ -33,6 +33,7 @@ import javax.inject.Singleton
 class RealReflectionEngine @Inject constructor(
     private val classifier: ReflectionIntentClassifier,
     private val retriever: ReflectionRetriever,
+    private val validator: com.dhaval.echo.domain.reflection.ReflectionValidator,
     private val aiManager: AIManager
 ) : ReflectionEngine {
 
@@ -59,7 +60,19 @@ class RealReflectionEngine @Inject constructor(
         // has connected one, rules otherwise; both read the same structured
         // brief, so the two tiers differ in fluency rather than in substance.
         val cloud = aiManager.getNarrativeService()?.let { CloudReflectionNarrator(it) }
-        val text = cloud?.narrate(brief)
+
+        // Then check it. A model asked to write about someone's life will
+        // occasionally add a name that was never there, and the user has no way
+        // to tell that from a memory they've forgotten. A rejected answer falls
+        // back to the rules-based narrator, which cannot invent anything because
+        // it only ever assembles the brief's own vocabulary.
+        val text = cloud?.narrate(brief)?.let { written ->
+            val verdict = validator.validate(written, brief)
+            if (verdict.isAcceptable) written else {
+                Log.w(TAG, "Rejected model reflection: ${verdict.detail}")
+                null
+            }
+        }
             ?: localNarrator.narrate(brief)
             ?: "I don't have enough from ${brief.window.label} to say anything useful yet."
 
@@ -94,7 +107,7 @@ class RealReflectionEngine @Inject constructor(
             }
         }
 
-        brief.shifts().firstOrNull { it.endsWith("has quietened") }?.let { shift ->
+        brief.changes.firstOrNull { it.endsWith("has quietened") }?.let { shift ->
             val theme = shift.removeSuffix(" has quietened")
             return "$theme has gone quiet compared with before — worth a look if it still matters."
         }

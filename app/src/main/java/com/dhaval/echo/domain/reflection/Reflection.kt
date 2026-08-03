@@ -83,6 +83,17 @@ data class NamedCount(val name: String, val count: Int, val type: String = "")
 data class Theme(
     val name: String,
     val memoryCount: Int,
+    /**
+     * How much this mattered, 0..1 — **decided by Echo, never by the model.**
+     *
+     * Volume is only part of it: a theme carrying an overdue commitment matters
+     * more than a busier one that carries none. Handing a model raw counts and
+     * letting it infer importance is exactly the thing that makes two providers
+     * answer differently, so the judgement is made here and passed in.
+     */
+    val importance: Float = 0f,
+    /** One line saying what this theme *is*, composed by Echo from its contents. */
+    val summary: String = "",
     /** Who and what this theme is made of, most-mentioned first. */
     val entities: List<NamedCount> = emptyList(),
     val memoryIds: List<String> = emptyList()
@@ -116,23 +127,34 @@ data class ReflectionBrief(
     val openCommitments: List<CommitmentBrief> = emptyList(),
     /** The same themes over the preceding window — what makes "less than before" sayable. */
     val previousThemes: List<Theme> = emptyList(),
+    /**
+     * What changed against the previous period, already decided.
+     *
+     * Materialised rather than left for the model to spot: comparing two sets of
+     * counts is arithmetic, and arithmetic is Echo's job. A model asked to
+     * notice a trend will sometimes notice one that isn't there.
+     */
+    val changes: List<String> = emptyList(),
     val sources: List<Citation> = emptyList()
 ) {
     val isEmpty: Boolean get() = memoryCount == 0
 
-    /** Themes that grew, shrank, or appeared, against the previous window. */
-    fun shifts(): List<String> {
-        if (previousThemes.isEmpty()) return emptyList()
-        val before = previousThemes.associate { it.name to it.memoryCount }
-        return themes.mapNotNull { theme ->
-            val was = before[theme.name]
-            when {
-                was == null && theme.memoryCount >= 2 -> "${theme.name} is new"
-                was != null && theme.memoryCount >= was * 2 -> "${theme.name} has grown"
-                was != null && was >= theme.memoryCount * 2 -> "${theme.name} has quietened"
-                else -> null
-            }
+    /**
+     * Every proper noun the narrator is allowed to use.
+     *
+     * The validator checks the written reflection against this: a name that
+     * appears in the output but not here was invented, and an invented person in
+     * someone's diary is the worst thing this feature could do.
+     */
+    fun vocabulary(): Set<String> = buildSet {
+        themes.forEach { theme ->
+            add(theme.name)
+            theme.entities.forEach { add(it.name) }
         }
+        people.forEach { add(it.name) }
+        projects.forEach { add(it.name) }
+        activities.forEach { add(it.name) }
+        moods.forEach { add(it.name) }
     }
 }
 
@@ -166,6 +188,41 @@ interface ReflectionRetriever {
 interface ReflectionNarrator {
     /** Null when this narrator cannot answer, so the caller can fall back. */
     suspend fun narrate(brief: ReflectionBrief): String?
+}
+
+/** Why a written reflection was rejected. */
+enum class ReflectionFlaw {
+    /** Named a person, project or place that is not in the brief. */
+    INVENTED_SUBJECT,
+
+    /** Leaked internal scaffolding — "Transcript:", "Memory:", JSON, headings. */
+    EXPOSED_INTERNALS,
+
+    /** Said almost nothing, or said the same thing repeatedly. */
+    EMPTY_OR_REPETITIVE
+}
+
+data class ReflectionVerdict(
+    val flaws: List<ReflectionFlaw> = emptyList(),
+    /** What was wrong, for the log — never shown to the user. */
+    val detail: String? = null
+) {
+    val isAcceptable: Boolean get() = flaws.isEmpty()
+}
+
+/**
+ * The step after the model, and the reason a provider swap stays safe.
+ *
+ * A language model asked to write about someone's life will occasionally add a
+ * name that was never there, or echo back the structure it was given. Neither is
+ * acceptable in a diary, and neither is detectable by reading the prompt — only
+ * by checking the output against the brief it was supposed to come from.
+ *
+ * Echo decides what is true; the model only decides how to say it. This is where
+ * that rule is enforced rather than merely intended.
+ */
+fun interface ReflectionValidator {
+    fun validate(text: String, brief: ReflectionBrief): ReflectionVerdict
 }
 
 /** The whole pipeline. */

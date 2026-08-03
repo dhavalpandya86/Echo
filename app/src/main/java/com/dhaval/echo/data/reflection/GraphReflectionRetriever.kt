@@ -82,6 +82,7 @@ class GraphReflectionRetriever @Inject constructor(
                 counts(items.filter { it.kind == ItemKind.MOOD }.map { it.value }),
             openCommitments = commitments(items, entryIds),
             previousThemes = previous,
+            changes = changesBetween(themes, previous),
             sources = sources(entries, themes)
         )
     }
@@ -118,20 +119,85 @@ class GraphReflectionRetriever @Inject constructor(
 
         val linksByMemory = links.groupBy { it.memoryId }
 
+        val openByMemory = items
+            .filter { it.kind == ItemKind.TASK || it.kind == ItemKind.REMINDER }
+            .filter { it.status == ItemStatus.OPEN }
+            .groupBy { it.memoryId }
+        val highPriority = items
+            .filter { it.kind == ItemKind.PRIORITY && it.value == "High" }
+            .map { it.memoryId }
+            .toSet()
+
+        val largest = grouped.values.maxOf { it.size }.coerceAtLeast(1)
+
         return grouped
             .map { (name, memoryIds) ->
                 // Which entities appear inside this theme — what turns
                 // "Family (5)" into "Family, mostly Prabir and school".
-                val inside = memoryIds.flatMap { linksByMemory[it].orEmpty() }
+                val inside = counts(memoryIds.flatMap { linksByMemory[it].orEmpty() })
+                    .take(MAX_ENTITIES_PER_THEME)
                 Theme(
                     name = name,
                     memoryCount = memoryIds.size,
-                    entities = counts(inside).take(MAX_ENTITIES_PER_THEME),
+                    importance = importanceOf(memoryIds, largest, openByMemory, highPriority),
+                    summary = summarise(inside),
+                    entities = inside,
                     memoryIds = memoryIds
                 )
             }
-            .sortedByDescending { it.memoryCount }
+            .sortedByDescending { it.importance }
             .take(MAX_THEMES)
+    }
+
+    /**
+     * How much a theme mattered, 0..1 — **Echo's judgement, not the model's.**
+     *
+     * Volume is most of it but not all of it: a quiet theme carrying an overdue
+     * commitment matters more than a busy one carrying none, which is precisely
+     * the kind of weighting a model would get inconsistently from raw counts.
+     * Deciding it here is what keeps two providers answering the same way.
+     */
+    private fun importanceOf(
+        memoryIds: List<String>,
+        largest: Int,
+        openByMemory: Map<String, List<com.dhaval.echo.data.db.ExtractedItem>>,
+        highPriority: Set<String>
+    ): Float {
+        val volume = memoryIds.size.toFloat() / largest
+        val hasOpen = memoryIds.any { openByMemory.containsKey(it) }
+        val hasHigh = memoryIds.any { it in highPriority }
+        return (volume * VOLUME_WEIGHT +
+            (if (hasOpen) OPEN_COMMITMENT_WEIGHT else 0f) +
+            (if (hasHigh) HIGH_PRIORITY_WEIGHT else 0f))
+            .coerceIn(0f, 1f)
+    }
+
+    /**
+     * A line saying what a theme is *made of*, composed here rather than left
+     * for the model to infer from a list of names.
+     */
+    private fun summarise(entities: List<NamedCount>): String = when {
+        entities.isEmpty() -> ""
+        entities.size == 1 -> "mostly ${entities[0].name}"
+        else -> "mostly " + entities.take(3).joinToString(", ") { it.name }
+    }
+
+    /**
+     * What changed against the previous period. Arithmetic, so Echo does it —
+     * a model asked to spot a trend will sometimes spot one that isn't there.
+     */
+    private fun changesBetween(now: List<Theme>, before: List<Theme>): List<String> {
+        if (before.isEmpty()) return emptyList()
+        val was = before.associate { it.name to it.memoryCount }
+        return now.mapNotNull { theme ->
+            val prior = was[theme.name]
+            when {
+                prior == null && theme.memoryCount >= 2 -> "${theme.name} is new"
+                prior != null && theme.memoryCount >= prior * 2 -> "${theme.name} has grown"
+                prior != null && prior >= theme.memoryCount * 2 -> "${theme.name} has quietened"
+                else -> null
+            }
+        }
     }
 
     private suspend fun previousThemes(userId: String, window: ReflectionWindow): List<Theme> {
@@ -225,6 +291,12 @@ class GraphReflectionRetriever @Inject constructor(
         const val MAX_NAMES = 8
         const val MAX_COMMITMENTS = 6
         const val MAX_SOURCES = 5
+
+        // Importance weights. Volume dominates, but an outstanding commitment or
+        // a High-priority memory lifts a quiet theme above a busy idle one.
+        const val VOLUME_WEIGHT = 0.6f
+        const val OPEN_COMMITMENT_WEIGHT = 0.25f
+        const val HIGH_PRIORITY_WEIGHT = 0.15f
         val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy")
     }
 }

@@ -38,7 +38,7 @@ class ReflectionNarratorTest {
         people: List<NamedCount> = emptyList(),
         commitments: List<CommitmentBrief> = emptyList(),
         moods: List<NamedCount> = emptyList(),
-        previous: List<Theme> = emptyList(),
+        changes: List<String> = emptyList(),
         count: Int = 10
     ) = ReflectionBrief(
         question = "what did I focus on this week?",
@@ -49,7 +49,9 @@ class ReflectionNarratorTest {
         people = people,
         moods = moods,
         openCommitments = commitments,
-        previousThemes = previous
+        // Comparisons arrive already decided — the retriever does the arithmetic
+        // so neither narrator has to infer a trend.
+        changes = changes
     )
 
     @Test
@@ -57,8 +59,8 @@ class ReflectionNarratorTest {
         val text = LocalReflectionNarrator().narrate(
             brief(
                 themes = listOf(
-                    Theme("Family", 5, listOf(NamedCount("Prabir", 4), NamedCount("Swimming", 2))),
-                    Theme("Work", 12, listOf(NamedCount("Echo", 12)))
+                    Theme("Family", 5, entities = listOf(NamedCount("Prabir", 4), NamedCount("Swimming", 2))),
+                    Theme("Work", 12, entities = listOf(NamedCount("Echo", 12)))
                 ),
                 people = listOf(NamedCount("Prabir", 4))
             )
@@ -74,8 +76,8 @@ class ReflectionNarratorTest {
         val text = LocalReflectionNarrator().narrate(
             brief(
                 themes = listOf(
-                    Theme("Work", 12, listOf(NamedCount("Echo", 12))),
-                    Theme("Family", 5, listOf(NamedCount("Prabir", 4)))
+                    Theme("Work", 12, entities = listOf(NamedCount("Echo", 12))),
+                    Theme("Family", 5, entities = listOf(NamedCount("Prabir", 4)))
                 )
             )
         )!!
@@ -88,11 +90,11 @@ class ReflectionNarratorTest {
         val text = LocalReflectionNarrator().narrate(
             brief(
                 themes = listOf(Theme("Work", 12), Theme("Family", 5)),
-                previous = listOf(Theme("Work", 2), Theme("Family", 12))
+                changes = listOf("Work has grown", "Family has quietened")
             )
         )!!
-        // Work doubled, Family halved — a comparison, which is the thing that
-        // makes a reflection feel like more than a list.
+        // A comparison, which is the thing that makes a reflection feel like
+        // more than a list.
         assertTrue(text, text.contains("Compared with before", ignoreCase = true))
     }
 

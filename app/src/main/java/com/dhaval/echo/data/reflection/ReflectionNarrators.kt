@@ -30,12 +30,14 @@ internal object BriefFormatter {
 
         if (brief.themes.isNotEmpty()) {
             appendLine()
-            appendLine("Themes, largest first:")
+            // Ordered by the importance Echo assigned, and labelled in words
+            // rather than numbers. A model handed "0.91" will sometimes quote it
+            // back; handed "dominant" it writes prose. The ranking decision has
+            // already been made either way — this only controls how it reads.
+            appendLine("What this period was about, most important first:")
             brief.themes.forEach { theme ->
-                append("- ${theme.name}: ${theme.memoryCount} memories")
-                if (theme.entities.isNotEmpty()) {
-                    append(" — ").append(theme.entities.joinToString(", ") { "${it.name} (${it.count})" })
-                }
+                append("- ${theme.name} (${weightLabel(theme.importance)})")
+                if (theme.summary.isNotBlank()) append(": ${theme.summary}")
                 appendLine()
             }
         }
@@ -58,11 +60,17 @@ internal object BriefFormatter {
             }
         }
 
-        val shifts = brief.shifts()
-        if (shifts.isNotEmpty()) {
+        if (brief.changes.isNotEmpty()) {
             appendLine()
-            appendLine("Compared with the period before: ${shifts.joinToString("; ")}.")
+            appendLine("What changed since the period before: ${brief.changes.joinToString("; ")}.")
         }
+    }
+
+    /** Words, not scores — see the note at the theme block. */
+    private fun weightLabel(importance: Float): String = when {
+        importance >= 0.75f -> "dominant"
+        importance >= 0.45f -> "significant"
+        else -> "minor"
     }
 
     private fun StringBuilder.section(title: String, values: List<String>) {
@@ -87,54 +95,55 @@ class CloudReflectionNarrator(
     override suspend fun narrate(brief: ReflectionBrief): String? {
         if (brief.isEmpty) return null
 
-        val instruction = buildString {
-            appendLine(instructionFor(brief.intent, brief.question))
-            appendLine()
-            appendLine(
-                "Write two or three short paragraphs, speaking to them directly as someone " +
-                    "who remembers their life. Draw a conclusion — say what the period was " +
-                    "about, what connects, and what changed. Do not list the memories back, " +
-                    "do not use bullet points, and do not mention counts as numbers."
-            )
-            appendLine(
-                "Everything below is already established fact. Do not invent people, " +
-                    "projects or events that are not in it. If it is too thin to say " +
-                    "anything meaningful, say that plainly and briefly."
-            )
-        }
+        // Layer 1 (voice, never changes) + Layer 2 (the task, one line).
+        // Layer 3 is the structured context, passed separately.
+        val instruction = "$SYSTEM_VOICE\n\n${taskFor(brief.intent)}\nThey asked: \"${brief.question}\""
 
         return runCatching {
             narrator.narrate(instruction, BriefFormatter.render(brief), maxTokens = 700)
         }.onFailure { Log.w(TAG, "Cloud reflection failed", it) }.getOrNull()
     }
 
-    private fun instructionFor(intent: ReflectionIntent, question: String): String = when (intent) {
-        ReflectionIntent.TIMELINE_SUMMARY ->
-            "The user asked: \"$question\". Tell them what their period was actually spent on."
-        ReflectionIntent.THEME_DISCOVERY ->
-            "The user asked: \"$question\". Tell them what has been occupying their mind, and " +
-                "what the themes have in common."
-        ReflectionIntent.COMMITMENT_ANALYSIS ->
-            "The user asked: \"$question\". Tell them what they have left undone, most pressing " +
-                "first, and be direct about anything past its date."
-        ReflectionIntent.MOOD_ANALYSIS ->
-            "The user asked: \"$question\". Describe how they have been feeling and what those " +
-                "feelings attach to. Be careful and kind; do not diagnose."
-        ReflectionIntent.PROJECT_ANALYSIS ->
-            "The user asked: \"$question\". Tell them which projects are moving, which have gone " +
-                "quiet, and where their attention actually went."
-        ReflectionIntent.RELATIONSHIP_ANALYSIS ->
-            "The user asked: \"$question\". Describe how this person has featured in their life " +
-                "and whether that has changed."
-        ReflectionIntent.PERIOD_REFLECTION ->
-            "The user asked for their reflection on \"$question\". Give them the shape of the " +
-                "period: what dominated, what shifted, what is unresolved."
-        ReflectionIntent.OPEN_QUESTION ->
-            "The user asked: \"$question\". Answer from what is known below, and say so if it " +
-                "does not really cover the question."
+    /**
+     * Layer 2: what kind of reflection this is. One line, and no product logic.
+     *
+     * Everything these used to say — which projects went quiet, what is overdue,
+     * what changed — is now decided by Echo and arrives in the context as fact.
+     * The model is told what it is writing, never how to work out what matters:
+     * an instruction like "mention anything past its date" makes the answer
+     * depend on how well a given provider follows instructions, which is exactly
+     * how two models end up behaving differently on the same memories.
+     */
+    private fun taskFor(intent: ReflectionIntent): String = when (intent) {
+        ReflectionIntent.TIMELINE_SUMMARY -> "Write a reflection on what this period was spent on."
+        ReflectionIntent.THEME_DISCOVERY -> "Write a reflection on what has been occupying their mind."
+        ReflectionIntent.COMMITMENT_ANALYSIS -> "Write a reflection on what is still unresolved."
+        ReflectionIntent.MOOD_ANALYSIS -> "Write a reflection on how they have been feeling. Be kind; never diagnose."
+        ReflectionIntent.PROJECT_ANALYSIS -> "Write a reflection on where their work has gone."
+        ReflectionIntent.RELATIONSHIP_ANALYSIS -> "Write a reflection on this person's place in their life."
+        ReflectionIntent.PERIOD_REFLECTION -> "Write their reflection for this period."
+        ReflectionIntent.OPEN_QUESTION -> "Answer their question from what is known."
     }
 
-    private companion object { const val TAG = "CloudReflection" }
+    private companion object {
+        const val TAG = "CloudReflection"
+
+        /**
+         * Layer 1: Echo's voice and its limits. Identical for every intent and
+         * every provider, so switching models changes the writing and nothing
+         * about what Echo will and won't do.
+         */
+        const val SYSTEM_VOICE =
+            "You are Echo. You help someone understand their own life.\n" +
+                "You have already been given a structured understanding of their memories — " +
+                "it is complete, and it is the only thing you know.\n" +
+                "Never invent a person, project or event that is not in it. Never quote or " +
+                "restate individual memories. Never mention counts, scores, field names or " +
+                "that you were given data at all.\n" +
+                "Write two or three short paragraphs of natural prose, no lists. Reach a " +
+                "conclusion rather than describing. If there is too little to say something " +
+                "meaningful, say that briefly and stop."
+    }
 }
 
 /**
@@ -192,7 +201,7 @@ class LocalReflectionNarrator : ReflectionNarrator {
             }
         }
 
-        val shifts = brief.shifts()
+        val shifts = brief.changes
         if (shifts.isNotEmpty()) {
             out += "Compared with before, ${shifts.joinToString(", ")}."
         }
@@ -254,7 +263,7 @@ class LocalReflectionNarrator : ReflectionNarrator {
         if (brief.projects.size > 1) {
             out += "You also touched " + listOf(brief.projects.drop(1).take(3).map { it.name }).joinNaturally() + "."
         }
-        val quiet = brief.shifts().filter { it.contains("quietened") }
+        val quiet = brief.changes.filter { it.contains("quietened") }
         if (quiet.isNotEmpty()) out += quiet.joinToString(", ").replaceFirstChar { it.uppercase() } + "."
         return out
     }
